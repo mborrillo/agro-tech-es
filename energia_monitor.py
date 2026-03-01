@@ -1,3 +1,12 @@
+# ══════════════════════════════════════════════════════════════════
+# ARCHIVO: energia_monitor.py
+# PROYECTO: Monitor Campo Extremadura — Ingesta de Energía
+# PLATAFORMA: Script ETL · ejecutado via GitHub Actions
+# FUENTE: Red Eléctrica de España (REE) — precio PVPC
+# DESTINO: Supabase → tabla datos_energia
+# REPO: https://github.com/mborrillo/agro-tech-es
+# ══════════════════════════════════════════════════════════════════
+
 import requests
 from supabase import create_client, Client
 from datetime import datetime
