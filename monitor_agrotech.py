@@ -1,3 +1,13 @@
+# ══════════════════════════════════════════════════════════════════
+# ARCHIVO: monitor_agrotech.py
+# PROYECTO: Monitor Campo Extremadura — Orquestador / Lonja Local
+# PLATAFORMA: Script ETL · ejecutado via GitHub Actions
+# FUNCIÓN: Sincroniza precios de la Lonja de Extremadura con
+#          los parámetros internacionales (correlaciones_agro)
+# DESTINO: Supabase → tabla precios_agricolas
+# REPO: https://github.com/mborrillo/agro-tech-es
+# ══════════════════════════════════════════════════════════════════
+
 import os
 from supabase import create_client, Client
 from datetime import datetime
@@ -91,4 +101,5 @@ def obtener_precios_locales():
 
 if __name__ == "__main__":
     obtener_precios_locales()
+
 
