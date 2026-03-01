@@ -1,3 +1,4 @@
+# Para el proyecto de https://agro-tech.streamlit.app/, el archivo por default debe ser requirements.txt
 # ── Dashboard Core ──
 streamlit==1.31.1
 pandas>=2.0.0
