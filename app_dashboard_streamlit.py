@@ -647,26 +647,14 @@ def render_mercados():
     if not df_c.empty:
         df_chart_merc = (
             df_c.sort_values("fecha").groupby("producto").last().reset_index()
-            .sort_values("producto")
+            .sort_values("producto")  # orden alfabético como en Lovable
         )
-
-        # ── Debug: mostrar columnas y valores reales de la vista ──
-        with st.expander("🔍 Diagnóstico — columnas y datos de v_comparativa_mercados", expanded=False):
-            st.write("**Columnas disponibles:**", df_chart_merc.columns.tolist())
-            cols_precio = [c for c in df_chart_merc.columns if "precio" in c.lower() or "local" in c.lower() or "inter" in c.lower()]
-            st.write("**Columnas de precio detectadas:**", cols_precio)
-            if cols_precio:
-                st.dataframe(df_chart_merc[["producto"] + cols_precio].head(20))
-
         if not df_chart_merc.empty and "precio_local_kg" in df_chart_merc.columns:
-            # Forzar conversión numérica explícita
-            df_chart_merc["precio_local_kg"] = pd.to_numeric(df_chart_merc["precio_local_kg"], errors="coerce").fillna(0)
-            df_chart_merc["precio_internacional_kg"] = pd.to_numeric(df_chart_merc["precio_internacional_kg"], errors="coerce").fillna(0)
-
             n_productos = len(df_chart_merc)
-            chart_height = max(320, n_productos * 52 + 80)
+            chart_height = max(320, n_productos * 52 + 80)  # altura dinámica por número de productos
 
             fig_bar = go.Figure()
+            # Barras horizontales: y=producto, x=precio (igual que Lovable)
             fig_bar.add_trace(go.Bar(
                 name="Precio Local",
                 y=df_chart_merc["producto"],
@@ -686,17 +674,13 @@ def render_mercados():
             layout_bar = {**CHART_LAYOUT}
             layout_bar["barmode"] = "group"
             layout_bar["xaxis"] = dict(
-                gridcolor="#e8f5ee",
-                color="#0d2b1a",
-                tickfont=dict(color="#0d2b1a", size=11),
-                title=dict(text="€/kg", font=dict(color="#0d2b1a", size=12)),
-                showgrid=True,
+                gridcolor="#e8f5ee", color="#7aa98e",
+                tickfont=dict(color="#7aa98e", size=11), title="€/kg",
             )
             layout_bar["yaxis"] = dict(
-                showgrid=False,
-                color="#0d2b1a",
+                showgrid=False, color="#0d2b1a",
                 tickfont=dict(color="#0d2b1a", size=11),
-                autorange="reversed",
+                autorange="reversed",  # mismo orden top-down que Lovable
             )
             layout_bar["legend"] = dict(
                 orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
