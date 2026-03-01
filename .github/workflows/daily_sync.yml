@@ -30,4 +30,4 @@ jobs:
           python clima_monitor.py
           python mercado_monitor.py
           python energia_monitor.py
-          python monitor_agrotech_v1.py 
+          python monitor_agrotech.py 
