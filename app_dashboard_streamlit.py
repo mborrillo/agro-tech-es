@@ -579,97 +579,141 @@ def render_mercados():
     else:
         st.info("Sin datos de mercados disponibles")
 
-def render_productos():
-    page_hero("🌐 Catálogo y Tendencias", "Monitor de Productos", "Análisis histórico de variaciones por categoría")
+def render_monitor_productos():
+    page_hero("🌐 Mercados Internacionales", "Monitor de Productos", "Seguimiento de precios internacionales por categoría")
+    df = load("v_monitor_productos", order_col="fecha", limit=500)
 
-    # Cargamos datos con orden cronológico (desc=False para que la fecha antigua esté a la izq)
-    df = load("precios_agricolas", order_col="fecha", desc=False, limit=500)
-    
-    if df.empty:
-        st.info("No hay datos de productos disponibles.")
-        return
-
-    # Aseguramos formato fecha y numérico
-    df['fecha'] = pd.to_datetime(df['fecha'])
-    df['variacion_p'] = pd.to_numeric(df['variacion_p'], errors='coerce').fillna(0)
-
-    # Filtros superiores
-    f1, f2 = st.columns([1, 2])
+    f1, f2, f3 = st.columns([1, 1, 2])
     with f1:
-        sectores = ["Todos"] + sorted(df["sector"].unique().tolist())
-        sel_sector = st.selectbox("Filtrar por Sector", sectores)
+        cat_opts = ["Todas"]
+        if not df.empty and "categoria" in df.columns:
+            cat_opts += sorted(df["categoria"].dropna().unique().tolist())
+        filtro_cat = st.selectbox("Categoría", cat_opts)
     with f2:
-        buscar = st.text_input("🔍 Buscar producto específico", placeholder="Ej: Trigo, Ternera...")
+        tend_opts = ["Todas"]
+        if not df.empty and "tendencia" in df.columns:
+            tend_opts += sorted(df["tendencia"].dropna().unique().tolist())
+        filtro_tend = st.selectbox("Tendencia", tend_opts)
+    with f3:
+        buscar_prod = st.text_input("🔍 Buscar producto", placeholder="Nombre del producto...")
 
-    # Aplicar filtros
-    df_filtered = df.copy()
-    if sel_sector != "Todos":
-        df_filtered = df_filtered[df_filtered["sector"] == sel_sector]
-    if buscar:
-        df_filtered = df_filtered[df_filtered["producto"].str.contains(buscar, case=False, na=False)]
+    ultimo_prod = None; n_productos_int = n_alza = n_baja = 0
+    if not df.empty:
+        if "fecha" in df.columns:
+            df["fecha"] = pd.to_datetime(df["fecha"])
+            ultimo_prod = df["fecha"].max()
+        if "producto" in df.columns:
+            n_productos_int = df["producto"].nunique()
+        if "tendencia" in df.columns:
+            tend_lower = df.groupby("producto")["fecha"].idxmax().map(lambda i: str(df.loc[i, "tendencia"]).lower() if i in df.index else "")
+            n_alza = int((tend_lower.str.contains("alza|sube|alcista|up|positiv", na=False)).sum())
+            n_baja = int((tend_lower.str.contains("baja|baj|bajista|down|negativ", na=False)).sum())
 
-    # --- HISTOGRAMA DE BARRAS POR CATEGORÍA ---
-    section_header("📊", "Variación de Precios por Categoría", "Evolución de cotizaciones (Orden cronológico)")
-
-    # Agrupamos por fecha y sector para obtener la variación media de ese día
-    df_agg = df_filtered.groupby(['fecha', 'sector'])['variacion_p'].mean().reset_index()
-    
-    # Creamos el gráfico de barras agrupadas (barmode='group')
-    fig = px.bar(
-        df_agg,
-        x="fecha",
-        y="variacion_p",
-        color="sector",
-        barmode="group",
-        color_discrete_sequence=COLORS,
-        labels={"variacion_p": "Variación (%)", "fecha": "Fecha", "sector": "Categoría"}
-    )
-
-    fig.update_layout(
-        CHART_LAYOUT,
-        height=450,
-        xaxis=dict(
-            type='date',
-            tickformat='%d %b', # Formato: 01 Mar
-            showgrid=True,
-            gridcolor="#e8f5ee"
-        ),
-        yaxis=dict(
-            title="Variación Diaria (%)",
-            zeroline=True,
-            zerolinecolor="#0d2b1a",
-            zerolinewidth=1
-        )
-    )
-    
-    # Estética de las barras: un poco de transparencia y sin bordes para que se vea limpio
-    fig.update_traces(marker_line_width=0, opacity=0.85)
-
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-    # --- TABLA DETALLADA ---
+    c1, c2, c3, c4 = st.columns(4)
+    kpi_card(c1, "kpi-green", "📅", ultimo_prod.strftime("%d/%m/%y") if ultimo_prod is not None else "—", "Última cotización", "Fecha más reciente")
+    kpi_card(c2, "kpi-blue",  "🌐", str(n_productos_int), "Productos Internacionales", "En seguimiento")
+    kpi_card(c3, "kpi-green", "📈", str(n_alza), "En Alza",  "Tendencia positiva")
+    kpi_card(c4, "kpi-red",   "📉", str(n_baja), "En Baja",  "Tendencia negativa")
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-    section_header("📋", "Detalle de Cotizaciones", "Listado completo de productos y sus cambios")
-    
-    # Formateamos la tabla para que sea más legible
-    df_display = df_filtered.sort_values("fecha", ascending=False)[["fecha", "sector", "producto", "precio_max", "variacion_p"]]
-    st.dataframe(
-        df_display.style.format({"precio_max": "{:.2f} €", "variacion_p": "{:+.2f}%"}),
-        use_container_width=True,
-        height=400
-    )
 
-# --- BLOQUE DE CONTROL PRINCIPAL ---
-if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
-    render_login()
-else:
-    page = render_sidebar()
-    if page == "Dashboard": render_dashboard()
-    elif page == "Mapa de Operaciones": render_mapa()
-    elif page == "Monitor de Mercados": render_mercados()
-    elif page == "Monitor de Productos": render_productos()
-    elif page == "Alertas": st.info("Próximamente: Sistema de Alertas SMS/Email")
-    elif page == "Configuración": st.info("Configuración de perfil y preferencias")
+    df_f = df.copy()
+    if filtro_cat != "Todas" and "categoria" in df_f.columns:
+        df_f = df_f[df_f["categoria"] == filtro_cat]
+    if filtro_tend != "Todas" and "tendencia" in df_f.columns:
+        df_f = df_f[df_f["tendencia"] == filtro_tend]
+    if buscar_prod and "producto" in df_f.columns:
+        df_f = df_f[df_f["producto"].str.contains(buscar_prod, case=False, na=False)]
+
+    section_header("📈", "Variación de Precios por Categoría", "Evolución del precio_cierre por fecha y categoría — filtros aplicados")
+    if not df_f.empty and "fecha" in df_f.columns and "precio_cierre" in df_f.columns and "categoria" in df_f.columns:
+        df_chart = df_f.copy()
+        df_chart["precio_cierre"] = pd.to_numeric(df_chart["precio_cierre"], errors="coerce")
+        df_chart = df_chart.dropna(subset=["precio_cierre", "fecha"]).sort_values("fecha")
+        df_grouped = df_chart.groupby(["fecha", "categoria"])["precio_cierre"].mean().reset_index()
+        categorias = df_grouped["categoria"].dropna().unique()
+        palette = ["#27a05e", "#f59e0b", "#3b82f6", "#ef4444", "#8b5e34", "#a855f7", "#0ea5e9", "#f97316"]
+        fig = go.Figure()
+        for i, cat in enumerate(categorias):
+            sub = df_grouped[df_grouped["categoria"] == cat].sort_values("fecha")
+            color = palette[i % len(palette)]
+            fig.add_trace(go.Scatter(
+                x=sub["fecha"], y=sub["precio_cierre"], name=str(cat),
+                line=dict(color=color, width=2.2), mode="lines+markers",
+                marker=dict(size=5, color=color),
+                hovertemplate=f"<b>{cat}</b><br>%{{x|%d/%m/%Y}}<br>Precio: <b>%{{y:.4f}}</b><extra></extra>",
+            ))
+        layout_t = {**CHART_LAYOUT}
+        layout_t["xaxis"] = dict(showgrid=True, gridcolor="#e8f5ee", color="#0d2b1a", tickfont=dict(color="#0d2b1a", size=11), tickformat="%d/%m/%y", title="")
+        layout_t["yaxis"] = dict(gridcolor="#e8f5ee", color="#0d2b1a", tickfont=dict(color="#0d2b1a", size=11), title="Precio cierre")
+        layout_t["legend"] = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12, color="#0d2b1a"), bgcolor="rgba(255,255,255,0.9)", bordercolor="#d1ead9", borderwidth=1)
+        layout_t["hovermode"] = "x unified"
+        layout_t["margin"] = dict(l=0, r=0, t=50, b=0)
+        fig.update_layout(height=380, **layout_t)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    elif df_f.empty:
+        st.info("No hay datos que coincidan con los filtros aplicados")
+    else:
+        st.info("Sin datos suficientes para el gráfico de evolución")
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    fecha_header = ultimo_prod.strftime("%Y-%m-%d") if ultimo_prod is not None else "—"
+    section_header("📋", "Evolución de Productos Internacionales", f"Última actualización: {fecha_header}")
+
+    if not df_f.empty:
+        cols_tabla = [c for c in ["fecha", "producto", "precio_cierre", "moneda", "var_precio", "categoria", "tendencia"] if c in df_f.columns]
+        col_widths = "1.2fr " + " ".join(["1.4fr"] * (len(cols_tabla) - 1))
+        col_labels = {"fecha": "Fecha", "producto": "Producto", "precio_cierre": "Precio Cierre", "moneda": "Moneda", "var_precio": "Var. Precio", "categoria": "Categoría", "tendencia": "Tendencia"}
+        header_html = "".join([f'<span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">{col_labels.get(c, c)}</span>' for c in cols_tabla])
+        st.markdown(f"""
+        <div style="display:grid;grid-template-columns:{col_widths};gap:8px;padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;border:1px solid var(--border);border-bottom:2px solid var(--border);margin-bottom:2px;">
+            {header_html}
+        </div>
+        """, unsafe_allow_html=True)
+
+        df_tabla = df_f[cols_tabla].sort_values("fecha", ascending=False).head(100).reset_index(drop=True)
+        for _, row in df_tabla.iterrows():
+            tend_val = str(row.get("tendencia", "") or "").lower()
+            var_val  = row.get("var_precio", None)
+            if any(x in tend_val for x in ["alza", "sube", "alcista", "up", "positiv"]):
+                tend_bg, tend_col, tend_svg = "#dcfce7", "#15803d", '<svg width="18" height="14" viewBox="0 0 22 16"><polyline points="2,13 8,7 13,10 20,3" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,3 20,3 20,8" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            elif any(x in tend_val for x in ["baja", "bajista", "down", "negativ"]):
+                tend_bg, tend_col, tend_svg = "#fee2e2", "#b91c1c", '<svg width="18" height="14" viewBox="0 0 22 16"><polyline points="2,3 8,9 13,6 20,13" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,13 20,13 20,8" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            else:
+                tend_bg, tend_col, tend_svg = "#fef3c7", "#b45309", '<svg width="18" height="14" viewBox="0 0 22 16"><line x1="2" y1="8" x2="20" y2="8" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/></svg>'
+            try:
+                var_f = float(var_val) if var_val is not None else None
+                var_str = (f"+{var_f:.2f}%" if var_f > 0 else f"{var_f:.2f}%") if var_f is not None else "—"
+                var_color = "#15803d" if (var_f or 0) > 0 else ("#b91c1c" if (var_f or 0) < 0 else "#475569")
+            except Exception:
+                var_str, var_color = str(var_val or "—"), "#475569"
+            try:
+                precio_str = f"{float(row.get('precio_cierre', 0) or 0):.4f}"
+            except Exception:
+                precio_str = str(row.get("precio_cierre", "—"))
+            try:
+                fecha_str = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
+            except Exception:
+                fecha_str = str(row.get("fecha", ""))
+
+            cells = []
+            for c in cols_tabla:
+                if c == "fecha": cells.append(f'<span style="font-family:\'DM Mono\',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_str}</span>')
+                elif c == "producto": cells.append(f'<span style="font-weight:600;font-size:0.88rem;color:#0d2b1a;">{row.get("producto","—")}</span>')
+                elif c == "precio_cierre": cells.append(f'<span style="font-family:\'DM Mono\',monospace;font-size:0.88rem;color:#1a5c38;font-weight:600;">{precio_str}</span>')
+                elif c == "moneda": cells.append(f'<span style="font-size:0.82rem;color:#475569;font-weight:500;">{row.get("moneda","—")}</span>')
+                elif c == "var_precio": cells.append(f'<span style="font-family:\'DM Mono\',monospace;font-size:0.85rem;font-weight:700;color:{var_color};">{var_str}</span>')
+                elif c == "categoria": cells.append(f'<span style="font-size:0.82rem;color:#1a5c38;background:#f0faf4;padding:2px 8px;border-radius:6px;font-weight:600;">{row.get("categoria","—")}</span>')
+                elif c == "tendencia": cells.append(f'<span style="display:inline-flex;align-items:center;gap:6px;background:{tend_bg};color:{tend_col};font-weight:700;font-size:0.78rem;padding:3px 10px;border-radius:20px;">{tend_svg} {str(row.get("tendencia","—")).upper()}</span>')
+            cells_html = "".join([f"<span>{cell}</span>" for cell in cells])
+            st.markdown(f"""
+            <div style="display:grid;grid-template-columns:{col_widths};gap:8px;align-items:center;padding:12px 20px;background:white;border:1px solid var(--border);border-top:none;transition:background 0.15s;">
+                {cells_html}
+            </div>
+            """, unsafe_allow_html=True)
+        if len(df_f) > 100:
+            st.caption(f"Mostrando los 100 registros más recientes de {len(df_f)} totales.")
+    else:
+        st.info("Sin datos disponibles con los filtros seleccionados")
 
 def render_alertas():
     page_hero("🔔 Notificaciones", "Centro de Alertas", "Clima extremo y energía — actualizados automáticamente")
