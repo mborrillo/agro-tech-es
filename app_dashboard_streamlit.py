@@ -1,8 +1,10 @@
-"""
-AgroTech Extremadura — Dashboard Principal
-Conectado a Supabase con datos reales.
-Credenciales via st.secrets (nunca hardcodeadas).
-"""
+# ══════════════════════════════════════════════════════════════════
+# ARCHIVO: app_dashboard_streamlit.py
+# PROYECTO: Monitor Campo Extremadura — Dashboard Principal
+# PLATAFORMA: Streamlit → https://agro-tech.streamlit.app/
+#             (acceso con cualquier usuario y contraseña)
+# REPO: https://github.com/mborrillo/agro-tech-es
+# ══════════════════════════════════════════════════════════════════
 
 import streamlit as st
 import pandas as pd
