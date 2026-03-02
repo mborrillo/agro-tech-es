@@ -439,68 +439,24 @@ def render_mercados():
     page_hero("📊 Análisis de mercado", "Monitor de Mercados", "Comparativa de precios locales vs internacionales")
 
     df_p = load("precios_agricolas",      order_col="fecha", limit=300)
-    df_c = load("v_comparativa_mercados", order_col="fecha", limit=200)
+    df_c = load("v_comparativa_mercados", order_col="fecha", limit=100)
 
-    # Convertir fechas antes de los filtros
-    if not df_p.empty and "fecha" in df_p.columns:
-        df_p["fecha"] = pd.to_datetime(df_p["fecha"])
-    if not df_c.empty:
-        df_c["fecha"] = pd.to_datetime(df_c["fecha"])
-
-    # ── Filtros — fila 1: Mercado Referencia + Buscar ──
     f1, f2 = st.columns([1, 2])
     with f1:
-        ref_opts = ["Todos"]
-        if not df_c.empty and "relacion" in df_c.columns:
-            ref_opts += sorted(df_c["relacion"].dropna().unique().tolist())
-        filtro_ref = st.selectbox("Mercado Referencia", ref_opts)
+        sector_opts = ["Todos"]
+        if not df_p.empty and "sector" in df_p.columns:
+            sector_opts += sorted(df_p["sector"].dropna().unique().tolist())
+        filtro_sector = st.selectbox("Sector", sector_opts)
     with f2:
         buscar_prod = st.text_input("🔍 Buscar mercado", placeholder="Nombre del mercado o producto...")
 
-    # ── Filtros — fila 2: Periodo encadenado (Mes/Año → Días) ──
-    MESES_ES = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
-                7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"}
-
-    mes_opts = ["Todos los meses"]
-    fechas_unicas = pd.Series(dtype="object")
-    if not df_c.empty:
-        fechas_unicas = df_c["fecha"].dropna().dt.normalize().drop_duplicates()
-        # Mes/Año únicos, descendente
-        meses_unicos = (
-            fechas_unicas.dt.to_period("M")
-            .drop_duplicates()
-            .sort_values(ascending=False)
-        )
-        mes_opts += [f"{MESES_ES[p.month]} {p.year}" for p in meses_unicos]
-
-    p1, p2 = st.columns([1, 2])
-    with p1:
-        filtro_mes = st.selectbox("📅 Mes / Año", mes_opts)
-    with p2:
-        # Poblar días según el mes seleccionado
-        dias_opts = []
-        if filtro_mes != "Todos los meses" and not fechas_unicas.empty:
-            # Parsear mes seleccionado
-            partes = filtro_mes.split()
-            mes_num = {v: k for k, v in MESES_ES.items()}[partes[0]]
-            anio    = int(partes[1])
-            dias_del_mes = fechas_unicas[
-                (fechas_unicas.dt.month == mes_num) & (fechas_unicas.dt.year == anio)
-            ].dt.strftime("%Y-%m-%d").sort_values(ascending=False).tolist()
-            dias_opts = dias_del_mes
-        filtro_dias = st.multiselect(
-            "📆 Días",
-            options=dias_opts,
-            placeholder="Todos los días del mes..." if filtro_mes != "Todos los meses" else "Selecciona primero un mes",
-            disabled=(filtro_mes == "Todos los meses"),
-        )
-
-    # ── KPIs (siempre sobre datos completos, sin filtro de periodo) ──
     n_emparejados = al_alza_merc = a_la_baja_merc = 0
     ultimo = None
-    if not df_p.empty:
+    if not df_p.empty and "fecha" in df_p.columns:
+        df_p["fecha"] = pd.to_datetime(df_p["fecha"])
         ultimo = df_p["fecha"].max()
     if not df_c.empty:
+        df_c["fecha"] = pd.to_datetime(df_c["fecha"])
         df_ult_c_kpi = df_c.sort_values("fecha").groupby("producto").last().reset_index()
         n_emparejados = len(df_ult_c_kpi)
         if "diferencial_arbitraje" in df_ult_c_kpi.columns:
@@ -516,75 +472,66 @@ def render_mercados():
     kpi_card(c4, "kpi-red",   "📉", str(a_la_baja_merc), "A la baja", "Diferencial negativo")
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # ── Dataset filtrado (gráfico + tabla) ──
+    # Dataset filtrado
     df_vis = pd.DataFrame()
     if not df_c.empty:
-        # Gráfico: siempre el último registro por producto (sin filtro de periodo)
         df_vis = df_c.sort_values("fecha").groupby("producto").last().reset_index()
         if buscar_prod:
             df_vis = df_vis[df_vis["producto"].str.contains(buscar_prod, case=False, na=False)]
-        if filtro_ref != "Todos" and "relacion" in df_vis.columns:
-            df_vis = df_vis[df_vis["relacion"] == filtro_ref]
-
-    # Tabla: respeta filtros de periodo
-    df_tabla = pd.DataFrame()
-    if not df_c.empty:
-        df_tabla = df_c.copy()
-        if buscar_prod:
-            df_tabla = df_tabla[df_tabla["producto"].str.contains(buscar_prod, case=False, na=False)]
-        if filtro_ref != "Todos" and "relacion" in df_tabla.columns:
-            df_tabla = df_tabla[df_tabla["relacion"] == filtro_ref]
-        if filtro_mes != "Todos los meses":
-            partes  = filtro_mes.split()
-            mes_num = {v: k for k, v in MESES_ES.items()}[partes[0]]
-            anio    = int(partes[1])
-            df_tabla = df_tabla[
-                (df_tabla["fecha"].dt.month == mes_num) &
-                (df_tabla["fecha"].dt.year  == anio)
-            ]
-            if filtro_dias:
-                df_tabla = df_tabla[df_tabla["fecha"].dt.strftime("%Y-%m-%d").isin(filtro_dias)]
-        df_tabla = df_tabla.sort_values("fecha", ascending=False)
+        if filtro_sector != "Todos" and "sector" in df_vis.columns:
+            df_vis = df_vis[df_vis["sector"] == filtro_sector]
 
     # ── Gráfico diferencial de arbitraje: una barra vertical por producto ──
     section_header("📊", "Diferencial de Arbitraje (€/kg)", "Verde: precio local superior · Rojo: precio local inferior al internacional")
 
     if not df_vis.empty and "diferencial_arbitraje" in df_vis.columns:
-        df_chart = df_vis.sort_values("producto").copy()
-        df_chart["diferencial_arbitraje"] = pd.to_numeric(df_chart["diferencial_arbitraje"], errors="coerce").fillna(0)
-        colores = df_chart["diferencial_arbitraje"].apply(lambda v: "#27a05e" if v >= 0 else "#ef4444").tolist()
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as mpatches
 
-        fig_bar = go.Figure()
-        fig_bar.add_trace(go.Bar(
-            x=df_chart["producto"],
-            y=df_chart["diferencial_arbitraje"],
-            marker_color=colores,
-            opacity=0.9,
-            hovertemplate="<b>%{x}</b><br>Diferencial: <b>%{y:+.2f} €/kg</b><extra></extra>",
-        ))
-        fig_bar.add_hline(y=0, line_color="#0d2b1a", line_width=1.5, opacity=0.25)
-        fig_bar.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Plus Jakarta Sans", color="#0d2b1a"),
-            showlegend=False,
-            height=380,
-            margin=dict(l=50, r=20, t=30, b=120),
-            xaxis=dict(
-                showgrid=False,
-                tickfont=dict(color="#0d2b1a", size=11),
-                tickangle=-35,
-                color="#0d2b1a",
-            ),
-            yaxis=dict(
-                gridcolor="#e8f5ee",
-                tickfont=dict(color="#0d2b1a", size=11),
-                title=dict(text="€/kg", font=dict(color="#0d2b1a", size=12)),
-                color="#0d2b1a",
-                zeroline=False,
-            ),
-        )
-        st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False})
+            df_chart = df_vis.sort_values("producto").copy()
+            df_chart["diferencial_arbitraje"] = pd.to_numeric(df_chart["diferencial_arbitraje"], errors="coerce").fillna(0)
+            productos = df_chart["producto"].tolist()
+            valores   = df_chart["diferencial_arbitraje"].tolist()
+            colores   = ["#27a05e" if v >= 0 else "#ef4444" for v in valores]
+            n = len(productos)
+
+            fig, ax = plt.subplots(figsize=(max(8, n * 1.1), 4.5))
+            fig.patch.set_facecolor("#f0faf4")
+            ax.set_facecolor("#f0faf4")
+
+            bars = ax.bar(range(n), valores, color=colores, alpha=0.88, width=0.6, zorder=3)
+            ax.axhline(0, color="#0d2b1a", linewidth=1.2, alpha=0.3, zorder=2)
+
+            for bar, val in zip(bars, valores):
+                va     = "bottom" if val >= 0 else "top"
+                offset = max(abs(val) * 0.03, 0.05) * (1 if val >= 0 else -1)
+                ax.text(bar.get_x() + bar.get_width() / 2, val + offset,
+                        f"{val:+.2f}", ha="center", va=va,
+                        fontsize=8.5, fontweight="600", color="#0d2b1a")
+
+            ax.set_xticks(range(n))
+            ax.set_xticklabels(productos, rotation=30, ha="right", fontsize=10, color="#0d2b1a")
+            ax.set_ylabel("€/kg", fontsize=10, color="#0d2b1a")
+            ax.tick_params(axis="y", colors="#0d2b1a", labelsize=9)
+            ax.yaxis.grid(True, color="#d1ead9", linewidth=0.8, zorder=0)
+            ax.set_axisbelow(True)
+            for spine in ["top", "right"]:
+                ax.spines[spine].set_visible(False)
+            for spine in ["left", "bottom"]:
+                ax.spines[spine].set_color("#d1ead9")
+
+            patch_pos = mpatches.Patch(color="#27a05e", alpha=0.88, label="Precio local superior")
+            patch_neg = mpatches.Patch(color="#ef4444", alpha=0.88, label="Precio local inferior")
+            ax.legend(handles=[patch_pos, patch_neg], loc="upper right",
+                      fontsize=9, framealpha=0.85, edgecolor="#d1ead9")
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+        except Exception as e_chart:
+            st.warning(f"⚠️ Error al renderizar gráfico de diferencial: {e_chart}")
     elif df_vis.empty:
         st.info("No hay datos que coincidan con los filtros aplicados")
 
@@ -593,19 +540,11 @@ def render_mercados():
     fecha_str_header = ultimo.strftime('%Y-%m-%d') if ultimo is not None else '—'
     section_header("🗓️", "Precios del Día", f"Última actualización: {fecha_str_header}")
 
-    # Etiqueta de periodo activo
-    if filtro_mes != "Todos los meses":
-        label = filtro_mes
-        if filtro_dias:
-            label += f" — días: {', '.join(filtro_dias)}"
-        st.caption(f"📅 Periodo filtrado: {label}")
-
-    if not df_tabla.empty:
+    if not df_vis.empty:
         st.markdown("""
-        <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+        <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                     padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;
                     border:1px solid var(--border);border-bottom:2px solid var(--border);margin-bottom:2px;">
-            <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Fecha</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Producto</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Local (€/kg)</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Internacional (€/kg)</span>
@@ -614,7 +553,7 @@ def render_mercados():
         </div>
         """, unsafe_allow_html=True)
 
-        for _, row in df_tabla.iterrows():
+        for _, row in df_vis.iterrows():
             dif   = float(row.get("diferencial_arbitraje", 0) or 0)
             local = float(row.get("precio_local_kg", 0) or 0)
             intl  = float(row.get("precio_internacional_kg", 0) or 0)
@@ -627,12 +566,10 @@ def render_mercados():
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,3 8,9 13,6 20,13" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,13 20,13 20,8" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             else:
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
-            fecha_str = pd.to_datetime(row.get("fecha","")).strftime("%d/%m/%Y") if row.get("fecha") is not None else "—"
             st.markdown(f"""
-            <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+            <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                         align-items:center;padding:14px 20px;background:white;
                         border:1px solid var(--border);border-top:none;margin-bottom:0;">
-                <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_str}</span>
                 <span style="font-weight:600;font-size:0.9rem;color:#0d2b1a;">{row.get('producto','—')}</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#1a5c38;">{local:.2f} €/kg</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">{intl:.2f} €/kg</span>
@@ -643,6 +580,14 @@ def render_mercados():
             </div>
             """, unsafe_allow_html=True)
 
+    elif not df_p.empty:
+        df_tab = df_p.copy()
+        if buscar_prod:
+            df_tab = df_tab[df_tab["producto"].str.contains(buscar_prod, case=False, na=False)]
+        if filtro_sector != "Todos" and "sector" in df_tab.columns:
+            df_tab = df_tab[df_tab["sector"] == filtro_sector]
+        cols_show = [c for c in ["fecha","sector","producto","precio_min","precio_max","unidad","variacion_p"] if c in df_tab.columns]
+        st.dataframe(df_tab[cols_show].sort_values("fecha", ascending=False).reset_index(drop=True), use_container_width=True, height=300)
     else:
         st.info("Sin datos de mercados disponibles")
 
@@ -691,36 +636,62 @@ def render_monitor_productos():
     if buscar_prod and "producto" in df_f.columns:
         df_f = df_f[df_f["producto"].str.contains(buscar_prod, case=False, na=False)]
 
-    section_header("📈", "Variación de Precios por Categoría", "Evolución del precio_cierre por fecha y categoría — filtros aplicados")
+    section_header("📈", "Tendencia de Precios por Categoría", "Evolución del precio de cierre — más antiguo a la izquierda, más reciente a la derecha")
     if not df_f.empty and "fecha" in df_f.columns and "precio_cierre" in df_f.columns and "categoria" in df_f.columns:
-        df_chart = df_f.copy()
-        df_chart["precio_cierre"] = pd.to_numeric(df_chart["precio_cierre"], errors="coerce")
-        df_chart = df_chart.dropna(subset=["precio_cierre", "fecha"]).sort_values("fecha")
-        df_grouped = df_chart.groupby(["fecha", "categoria"])["precio_cierre"].mean().reset_index()
-        categorias = df_grouped["categoria"].dropna().unique()
-        palette = ["#27a05e", "#f59e0b", "#3b82f6", "#ef4444", "#8b5e34", "#a855f7", "#0ea5e9", "#f97316"]
-        fig = go.Figure()
-        for i, cat in enumerate(categorias):
-            sub = df_grouped[df_grouped["categoria"] == cat].sort_values("fecha")
-            color = palette[i % len(palette)]
-            fig.add_trace(go.Scatter(
-                x=sub["fecha"], y=sub["precio_cierre"], name=str(cat),
-                line=dict(color=color, width=2.2), mode="lines+markers",
-                marker=dict(size=5, color=color),
-                hovertemplate=f"<b>{cat}</b><br>%{{x|%d/%m/%Y}}<br>Precio: <b>%{{y:.4f}}</b><extra></extra>",
-            ))
-        layout_t = {**CHART_LAYOUT}
-        layout_t["xaxis"] = dict(showgrid=True, gridcolor="#e8f5ee", color="#0d2b1a", tickfont=dict(color="#0d2b1a", size=11), tickformat="%d/%m/%y", title="")
-        layout_t["yaxis"] = dict(gridcolor="#e8f5ee", color="#0d2b1a", tickfont=dict(color="#0d2b1a", size=11), title="Precio cierre")
-        layout_t["legend"] = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12, color="#0d2b1a"), bgcolor="rgba(255,255,255,0.9)", bordercolor="#d1ead9", borderwidth=1)
-        layout_t["hovermode"] = "x unified"
-        layout_t["margin"] = dict(l=0, r=0, t=50, b=0)
-        fig.update_layout(height=380, **layout_t)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            import matplotlib.dates as mdates
+
+            df_chart = df_f.copy()
+            df_chart["precio_cierre"] = pd.to_numeric(df_chart["precio_cierre"], errors="coerce")
+            df_chart["fecha"] = pd.to_datetime(df_chart["fecha"])
+            df_chart = df_chart.dropna(subset=["precio_cierre", "fecha"])
+            df_grouped = (
+                df_chart.groupby(["fecha", "categoria"])["precio_cierre"]
+                .mean().reset_index().sort_values("fecha")
+            )
+            categorias = sorted(df_grouped["categoria"].dropna().unique().tolist())
+            palette = ["#27a05e", "#f59e0b", "#3b82f6", "#ef4444", "#8b5e34", "#a855f7", "#0ea5e9", "#f97316"]
+
+            fig, ax = plt.subplots(figsize=(11, 4.5))
+            fig.patch.set_facecolor("#f0faf4")
+            ax.set_facecolor("#f0faf4")
+
+            for i, cat in enumerate(categorias):
+                sub = df_grouped[df_grouped["categoria"] == cat].sort_values("fecha")
+                if sub.empty:
+                    continue
+                color = palette[i % len(palette)]
+                ax.plot(sub["fecha"], sub["precio_cierre"],
+                        color=color, linewidth=2.2, marker="o", markersize=4,
+                        label=str(cat), zorder=3)
+
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%y"))
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            plt.xticks(rotation=30, ha="right", fontsize=9, color="#0d2b1a")
+            ax.set_ylabel("Precio cierre", fontsize=10, color="#0d2b1a")
+            ax.tick_params(axis="y", colors="#0d2b1a", labelsize=9)
+            ax.yaxis.grid(True, color="#d1ead9", linewidth=0.8, zorder=0)
+            ax.xaxis.grid(True, color="#d1ead9", linewidth=0.5, linestyle="--", zorder=0)
+            ax.set_axisbelow(True)
+            for spine in ["top", "right"]:
+                ax.spines[spine].set_visible(False)
+            for spine in ["left", "bottom"]:
+                ax.spines[spine].set_color("#d1ead9")
+            ax.legend(loc="upper left", bbox_to_anchor=(0, 1.13),
+                      ncol=max(1, len(categorias)),
+                      fontsize=9, framealpha=0.85, edgecolor="#d1ead9")
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+        except Exception as e_chart:
+            st.warning(f"⚠️ Error al renderizar gráfico de tendencia: {e_chart}")
     elif df_f.empty:
         st.info("No hay datos que coincidan con los filtros aplicados")
     else:
-        st.info("Sin datos suficientes para el gráfico de evolución")
+        st.info("Sin datos suficientes para el gráfico de tendencia")
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     fecha_header = ultimo_prod.strftime("%Y-%m-%d") if ultimo_prod is not None else "—"
