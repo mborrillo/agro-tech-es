@@ -441,14 +441,58 @@ def render_mercados():
     df_p = load("precios_agricolas",      order_col="fecha", limit=300)
     df_c = load("v_comparativa_mercados", order_col="fecha", limit=100)
 
-    f1, f2 = st.columns([1, 2])
+    # ── Filtros ──
+    # Preparar fechas disponibles para cascada Año → Mes → Día
+    fechas_disponibles = pd.Series(dtype="datetime64[ns]")
+    if not df_c.empty and "fecha" in df_c.columns:
+        df_c["fecha"] = pd.to_datetime(df_c["fecha"])
+        fechas_disponibles = df_c["fecha"].dropna()
+
+    f1, f2, f3, f4 = st.columns([1, 1, 1, 1.3])
+
     with f1:
-        sector_opts = ["Todos"]
-        if not df_p.empty and "sector" in df_p.columns:
-            sector_opts += sorted(df_p["sector"].dropna().unique().tolist())
-        filtro_sector = st.selectbox("Sector", sector_opts)
+        # Mercado Referencia
+        relacion_opts = ["Todos"]
+        if not df_c.empty and "relacion" in df_c.columns:
+            relacion_opts += sorted(df_c["relacion"].dropna().unique().tolist())
+        filtro_relacion = st.selectbox("Mercado Referencia", relacion_opts)
+
     with f2:
+        # Año — descendente
+        anios_opts = ["Todos"]
+        if not fechas_disponibles.empty:
+            anios_opts += [str(a) for a in sorted(fechas_disponibles.dt.year.unique(), reverse=True)]
+        filtro_anio = st.selectbox("Año", anios_opts)
+
+    with f3:
+        # Mes — depende del año seleccionado
+        MESES = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
+                 7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"}
+        mes_opts = ["Todos"]
+        if not fechas_disponibles.empty and filtro_anio != "Todos":
+            fechas_anio = fechas_disponibles[fechas_disponibles.dt.year == int(filtro_anio)]
+            mes_nums = sorted(fechas_anio.dt.month.unique(), reverse=True)
+            mes_opts += [f"{MESES[m]} ({m:02d})" for m in mes_nums]
+        filtro_mes_label = st.selectbox("Mes", mes_opts,
+                                        disabled=(filtro_anio == "Todos"))
+
+    with f4:
         buscar_prod = st.text_input("🔍 Buscar mercado", placeholder="Nombre del mercado o producto...")
+
+    # Día — fila separada, debajo, solo activo si hay mes seleccionado
+    filtro_dia_label = "Todos"
+    if filtro_anio != "Todos" and filtro_mes_label != "Todos":
+        mes_num = int(filtro_mes_label.split("(")[1].replace(")", ""))
+        fechas_mes = fechas_disponibles[
+            (fechas_disponibles.dt.year == int(filtro_anio)) &
+            (fechas_disponibles.dt.month == mes_num)
+        ]
+        dia_opts = ["Todos"] + [str(d) for d in sorted(fechas_mes.dt.day.unique(), reverse=True)]
+        if len(dia_opts) > 2:   # solo mostrar si hay más de un día
+            filtro_dia_label = st.selectbox(
+                f"Día — {filtro_mes_label.split(' (')[0]} {filtro_anio}",
+                dia_opts
+            )
 
     n_emparejados = al_alza_merc = a_la_baja_merc = 0
     ultimo = None
@@ -456,7 +500,6 @@ def render_mercados():
         df_p["fecha"] = pd.to_datetime(df_p["fecha"])
         ultimo = df_p["fecha"].max()
     if not df_c.empty:
-        df_c["fecha"] = pd.to_datetime(df_c["fecha"])
         df_ult_c_kpi = df_c.sort_values("fecha").groupby("producto").last().reset_index()
         n_emparejados = len(df_ult_c_kpi)
         if "diferencial_arbitraje" in df_ult_c_kpi.columns:
@@ -472,15 +515,29 @@ def render_mercados():
     kpi_card(c4, "kpi-red",   "📉", str(a_la_baja_merc), "A la baja", "Diferencial negativo")
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # Dataset filtrado
+    # ── Dataset filtrado (gráfico + tabla) ──
     df_vis = pd.DataFrame()
     if not df_c.empty:
-        df_vis = df_c.sort_values("fecha").groupby("producto").last().reset_index()
+        df_filt = df_c.copy()
+        # Aplicar cascada Año → Mes → Día
+        if filtro_anio != "Todos":
+            df_filt = df_filt[df_filt["fecha"].dt.year == int(filtro_anio)]
+        if filtro_mes_label != "Todos":
+            mes_num = int(filtro_mes_label.split("(")[1].replace(")", ""))
+            df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
+        if filtro_dia_label != "Todos":
+            df_filt = df_filt[df_filt["fecha"].dt.day == int(filtro_dia_label)]
+        # Tomar último registro por producto dentro del periodo filtrado
+        if not df_filt.empty:
+            df_vis = df_filt.sort_values("fecha").groupby("producto").last().reset_index()
+        else:
+            df_vis = df_c.sort_values("fecha").groupby("producto").last().reset_index()
+        # Filtro Mercado Referencia
+        if filtro_relacion != "Todos" and "relacion" in df_vis.columns:
+            df_vis = df_vis[df_vis["relacion"] == filtro_relacion]
+        # Filtro texto
         if buscar_prod:
             df_vis = df_vis[df_vis["producto"].str.contains(buscar_prod, case=False, na=False)]
-        if filtro_sector != "Todos" and "sector" in df_vis.columns:
-            df_vis = df_vis[df_vis["sector"] == filtro_sector]
-
     # ── Gráfico diferencial de arbitraje: una barra vertical por producto ──
     section_header("📊", "Diferencial de Arbitraje (€/kg)", "Verde: precio local superior · Rojo: precio local inferior al internacional")
 
