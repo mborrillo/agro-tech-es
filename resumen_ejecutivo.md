@@ -67,6 +67,56 @@ Extremadura tiene una producción agraria de alto valor — aceite de oliva, cor
 
 ---
 
+## Vistas SQL del Modelo
+
+---
+
+## 1. Vista: `v_mapa_operaciones` — El Cerebro Operativo
+
+**Objetivo:** Decidir cuándo actuar para no tirar el dinero.
+
+**Fundamento:** Unir el clima con la energía. Tradicionalmente, un agricultor mira el cielo para regar o fumigar. Nosotros le obligamos a mirar también la factura de la luz.
+
+### Explicación de Umbrales
+
+- **Temperatura (10°C - 25°C):** Es el rango fisiológico óptimo. Por debajo de 10°C, la planta está "dormida" y no absorbe el tratamiento; por encima de 25°C-30°C, el producto se evapora antes de actuar o quema la hoja (fitotoxicidad).
+
+- **Viento (< 15-20 km/h):** Evitamos la "deriva". Si hace viento, el producto químico termina en la parcela del vecino o en el arroyo, lo cual es dinero perdido y un riesgo medioambiental.
+
+- **Energía (> 0.15 €/kWh):** Hemos fijado este umbral porque, en los regadíos de Extremadura, bombear agua por encima de este precio suele comerse más del 40% del margen neto de la campaña.
+
+---
+
+## 2. Vista: `v_alertas_energia` — El Vigía de Costes
+
+**Objetivo:** Traducir un número abstracto (€/kWh) en una acción empresarial (Alto/Medio/Bajo).
+
+**Fundamento:** El precio de la energía es volátil. El agricultor no tiene tiempo de mirar la gráfica del pool eléctrico cada hora. Esta vista hace el trabajo sucio por él.
+
+**Por qué estos umbrales:** Usamos la consistencia. Si el Mapa dice que es caro regar a 0.15 €, la Alerta debe decir lo mismo. El éxito de la herramienta es que el sistema no se contradiga.
+
+---
+
+## 3. Vista: `v_comparativa_mercados` — El Escudo Comercial
+
+**Objetivo:** Darle al agricultor "poder de negociación".
+
+**Fundamento:** El concepto de Arbitraje. Si el precio en la Lonja de Extremadura está a 0.20 € pero en el mercado internacional (Chicago/París) está subiendo a 0.25 €, el agricultor sabe que no debe vender todavía.
+
+**Umbrales:** Aquí el umbral es el **Diferencial**. Visualizar barras rojas (precio local por debajo del internacional) alerta al usuario de que está perdiendo dinero por una mala comercialización, no por una mala cosecha.
+
+---
+
+## 4. Vista: `v_salud_sectores` — El Termómetro del Mercado
+
+**Objetivo:** Diagnóstico rápido del sector (¿Cómo va el Olivar? ¿Cómo va el Ovino?).
+
+**Fundamento:** Agregación estadística. En lugar de mirar 50 productos, miramos la "salud" del sector.
+
+**Lógica:** Si más del 60% de los productos de un sector bajan de precio, el sector está en **Alerta Roja**. Es una señal para que las cooperativas busquen ayudas o cambien estrategia de almacenamiento.
+
+---
+
 ## Estado actual
 
 - ✅ Dashboard operativo con datos reales de Supabase
