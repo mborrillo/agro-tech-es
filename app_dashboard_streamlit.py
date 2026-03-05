@@ -770,17 +770,24 @@ def render_monitor_productos():
         st.session_state["_prod_filter_key"] = filtro_key
     current_page = min(st.session_state["prod_page"], total_pages)
 
-    # CSS global para botones de paginación compactos y resaltado de página activa
+    # CSS: ocultar texto de botones de paginación y reemplazarlos con labels visibles superpuestos
     st.markdown("""
     <style>
-    [data-testid="stColumns"] .stButton > button {
-        font-size: 0.65rem !important;
-        font-weight: 600 !important;
-        padding: 0px 4px !important;
-        min-height: 20px !important;
-        height: 20px !important;
-        line-height: 20px !important;
-        border-radius: 5px !important;
+    /* Contenedor relativo para cada celda de paginación */
+    .pg-cell { position: relative; display: inline-block; }
+    /* Botón real: transparente, encima del texto, clickeable */
+    .pg-cell button {
+        position: absolute !important;
+        top: 0 !important; left: 0 !important;
+        width: 100% !important; height: 100% !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
+        z-index: 2 !important;
+        min-height: unset !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        background: transparent !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -798,49 +805,34 @@ def render_monitor_productos():
             start_p = max(1, min(current_page - half, total_pages - MAX_VISIBLE + 1))
             end_p   = min(total_pages, start_p + MAX_VISIBLE - 1)
 
-            parts = []
-            # ant
-            if current_page > 1:
-                parts.append(f'<span data-pg="{current_page - 1}" style="color:#27a05e;font-size:0.72rem;font-weight:600;cursor:pointer;padding:0 4px;" onclick="window.location.href=\'?pg={current_page - 1}\'">ant</span>')
-            else:
-                parts.append('<span style="color:#aacfbb;font-size:0.72rem;font-weight:600;padding:0 4px;cursor:default;">ant</span>')
-            # números
+            # Construir lista de slots: ant, números, sig
+            slots = []
+            slots.append(("ant", current_page - 1 if current_page > 1 else None))
             for p in range(start_p, end_p + 1):
-                if p == current_page:
-                    parts.append(f'<span style="color:#0d2b1a;font-size:0.72rem;font-weight:800;padding:0 5px;">{p}</span>')
-                else:
-                    parts.append(f'<span style="color:#27a05e;font-size:0.72rem;font-weight:500;padding:0 5px;">{p}</span>')
-            # sig
-            if current_page < total_pages:
-                parts.append(f'<span style="color:#27a05e;font-size:0.72rem;font-weight:600;padding:0 4px;">sig</span>')
-            else:
-                parts.append('<span style="color:#aacfbb;font-size:0.72rem;font-weight:600;padding:0 4px;cursor:default;">sig</span>')
+                slots.append((str(p), p if p != current_page else None))
+            slots.append(("sig", current_page + 1 if current_page < total_pages else None))
 
-            st.markdown(
-                f'<div style="display:flex;align-items:center;height:44px;gap:2px;">{"".join(parts)}</div>',
-                unsafe_allow_html=True
-            )
-            # Botones invisibles para navegación real
-            nav_cols = st.columns(end_p - start_p + 3)
-            btn_idx = 0
-            with nav_cols[btn_idx]:
-                if current_page > 1:
-                    if st.button("◀", key="pg_ant", help="Anterior", use_container_width=True):
-                        st.session_state["prod_page"] = current_page - 1
-                        st.rerun()
-            btn_idx += 1
-            for p in range(start_p, end_p + 1):
-                with nav_cols[btn_idx]:
-                    if p != current_page:
-                        if st.button(f"{p}", key=f"pg_{p}", use_container_width=True):
-                            st.session_state["prod_page"] = p
+            pg_cols = st.columns(len(slots))
+            for i, (label, target) in enumerate(slots):
+                is_active = (label == str(current_page))
+                is_disabled = (target is None and label not in (str(current_page),))
+                if is_active:
+                    color, weight = "#0d2b1a", "800"
+                elif is_disabled:
+                    color, weight = "#aacfbb", "500"
+                else:
+                    color, weight = "#27a05e", "600"
+
+                with pg_cols[i]:
+                    st.markdown(
+                        f'<div style="text-align:center;font-size:0.85rem;font-weight:{weight};'
+                        f'color:{color};line-height:36px;pointer-events:none;">{label}</div>',
+                        unsafe_allow_html=True
+                    )
+                    if target is not None:
+                        if st.button("​", key=f"pg_btn_{label}_{i}", use_container_width=True):  # zero-width space
+                            st.session_state["prod_page"] = target
                             st.rerun()
-                btn_idx += 1
-            with nav_cols[btn_idx]:
-                if current_page < total_pages:
-                    if st.button("▶", key="pg_sig", help="Siguiente", use_container_width=True):
-                        st.session_state["prod_page"] = current_page + 1
-                        st.rerun()
     with hdr_cols[3]:
         if not df_f.empty:
             import io
