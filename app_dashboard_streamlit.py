@@ -580,13 +580,44 @@ def render_mercados():
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     fecha_str_header = ultimo.strftime('%Y-%m-%d') if ultimo is not None else '—'
-    section_header("🗓️", "Precios del Día", f"Última actualización: {fecha_str_header}")
+
+    # ── Cabecera: icono + título + botón Excel ──
+    if not df_vis.empty:
+        import io as _io
+        _output = _io.BytesIO()
+        _cols_export = ["fecha", "producto", "relacion", "precio_local_kg", "precio_internacional_kg", "diferencial_arbitraje"]
+        _cols_export = [c for c in _cols_export if c in df_vis.columns]
+        _df_export = df_vis[_cols_export].copy()
+        if "fecha" in _df_export.columns:
+            _df_export["fecha"] = _df_export["fecha"].apply(lambda d: d.strftime("%d/%m/%Y") if hasattr(d, "strftime") else str(d))
+        with pd.ExcelWriter(_output, engine="openpyxl") as _writer:
+            _df_export.to_excel(_writer, index=False, sheet_name="Precios")
+        _excel_data = _output.getvalue()
+    else:
+        _excel_data = None
+
+    hdr_m = st.columns([0.05, 0.78, 0.17])
+    with hdr_m[0]:
+        st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:2px;">🗓️</div>', unsafe_allow_html=True)
+    with hdr_m[1]:
+        st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Precios del Día</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_str_header}</p></div>', unsafe_allow_html=True)
+    with hdr_m[2]:
+        if _excel_data:
+            st.download_button(
+                label="📥 Excel",
+                data=_excel_data,
+                file_name=f"precios_dia_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+    st.markdown("<div style='border-bottom:2px solid #d1ead9;margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
     if not df_vis.empty:
         st.markdown("""
-        <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+        <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                     padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;
                     border:1px solid var(--border);border-bottom:2px solid var(--border);margin-bottom:2px;">
+            <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Fecha</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Producto</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Local (€/kg)</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Internacional (€/kg)</span>
@@ -602,6 +633,10 @@ def render_mercados():
             sign  = "+" if dif > 0 else ""
             b_bg  = "#dcfce7" if dif > 0 else "#fee2e2"
             b_col = "#15803d" if dif > 0 else "#b91c1c"
+            try:
+                fecha_row = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
+            except Exception:
+                fecha_row = str(row.get("fecha", "—"))
             if dif > 0:
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,13 8,7 13,10 20,3" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,3 20,3 20,8" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             elif dif < 0:
@@ -609,9 +644,10 @@ def render_mercados():
             else:
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             st.markdown(f"""
-            <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+            <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                         align-items:center;padding:14px 20px;background:white;
                         border:1px solid var(--border);border-top:none;margin-bottom:0;">
+                <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_row}</span>
                 <span style="font-weight:600;font-size:0.9rem;color:#0d2b1a;">{row.get('producto','—')}</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#1a5c38;">{local:.2f} €/kg</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">{intl:.2f} €/kg</span>
