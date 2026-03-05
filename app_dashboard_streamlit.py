@@ -752,88 +752,15 @@ def render_monitor_productos():
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     fecha_header = ultimo_prod.strftime("%Y-%m-%d") if ultimo_prod is not None else "—"
+    total_rows = len(df_f) if not df_f.empty else 0
 
-    # ── Cabecera con botón Excel y paginación ──
-    ROWS_PER_PAGE = 50
-    if not df_f.empty:
-        total_rows   = len(df_f)
-        total_pages  = max(1, -(-total_rows // ROWS_PER_PAGE))  # ceil division
-    else:
-        total_rows = 0; total_pages = 1
-
-    if "prod_page" not in st.session_state:
-        st.session_state["prod_page"] = 1
-    # Resetear página si los filtros cambian
-    filtro_key = f"{filtro_periodo}{filtro_cat}{filtro_tend}{buscar_prod}"
-    if st.session_state.get("_prod_filter_key") != filtro_key:
-        st.session_state["prod_page"] = 1
-        st.session_state["_prod_filter_key"] = filtro_key
-    current_page = min(st.session_state["prod_page"], total_pages)
-
-    # CSS: ocultar texto de botones de paginación y reemplazarlos con labels visibles superpuestos
-    st.markdown("""
-    <style>
-    /* Contenedor relativo para cada celda de paginación */
-    .pg-cell { position: relative; display: inline-block; }
-    /* Botón real: transparente, encima del texto, clickeable */
-    .pg-cell button {
-        position: absolute !important;
-        top: 0 !important; left: 0 !important;
-        width: 100% !important; height: 100% !important;
-        opacity: 0 !important;
-        cursor: pointer !important;
-        z-index: 2 !important;
-        min-height: unset !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border: none !important;
-        background: transparent !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Fila: icono + título + paginación + Excel
-    hdr_cols = st.columns([0.05, 0.36, 0.47, 0.12])
+    # Fila: icono + título + Excel
+    hdr_cols = st.columns([0.05, 0.78, 0.17])
     with hdr_cols[0]:
         st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:2px;">📋</div>', unsafe_allow_html=True)
     with hdr_cols[1]:
         st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Evolución de Productos Internacionales</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_header} &nbsp;·&nbsp; {total_rows} registros</p></div>', unsafe_allow_html=True)
     with hdr_cols[2]:
-        if total_pages > 1:
-            MAX_VISIBLE = 6
-            half = MAX_VISIBLE // 2
-            start_p = max(1, min(current_page - half, total_pages - MAX_VISIBLE + 1))
-            end_p   = min(total_pages, start_p + MAX_VISIBLE - 1)
-
-            # Construir lista de slots: ant, números, sig
-            slots = []
-            slots.append(("ant", current_page - 1 if current_page > 1 else None))
-            for p in range(start_p, end_p + 1):
-                slots.append((str(p), p if p != current_page else None))
-            slots.append(("sig", current_page + 1 if current_page < total_pages else None))
-
-            pg_cols = st.columns(len(slots))
-            for i, (label, target) in enumerate(slots):
-                is_active = (label == str(current_page))
-                is_disabled = (target is None and label not in (str(current_page),))
-                if is_active:
-                    color, weight = "#0d2b1a", "800"
-                elif is_disabled:
-                    color, weight = "#aacfbb", "500"
-                else:
-                    color, weight = "#27a05e", "600"
-
-                with pg_cols[i]:
-                    st.markdown(
-                        f'<div style="text-align:center;font-size:0.85rem;font-weight:{weight};'
-                        f'color:{color};line-height:36px;pointer-events:none;">{label}</div>',
-                        unsafe_allow_html=True
-                    )
-                    if target is not None:
-                        if st.button("​", key=f"pg_btn_{label}_{i}", use_container_width=True):  # zero-width space
-                            st.session_state["prod_page"] = target
-                            st.rerun()
-    with hdr_cols[3]:
         if not df_f.empty:
             import io
             output = io.BytesIO()
@@ -854,9 +781,6 @@ def render_monitor_productos():
     if not df_f.empty:
         cols_tabla = [c for c in ["fecha", "producto", "precio_cierre", "moneda", "var_precio", "categoria", "tendencia"] if c in df_f.columns]
         col_widths = "1.2fr " + " ".join(["1.4fr"] * (len(cols_tabla) - 1))
-        # Calcular slice de la página actual
-        page_start = (current_page - 1) * ROWS_PER_PAGE
-        page_end   = page_start + ROWS_PER_PAGE
         col_labels = {"fecha": "Fecha", "producto": "Producto", "precio_cierre": "Precio Cierre", "moneda": "Moneda", "var_precio": "Var. Precio", "categoria": "Categoría", "tendencia": "Tendencia"}
         header_html = "".join([f'<span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">{col_labels.get(c, c)}</span>' for c in cols_tabla])
         st.markdown(f"""
@@ -865,8 +789,7 @@ def render_monitor_productos():
         </div>
         """, unsafe_allow_html=True)
 
-        df_sorted = df_f[cols_tabla].sort_values("fecha", ascending=False).reset_index(drop=True)
-        df_tabla  = df_sorted.iloc[page_start:page_end]
+        df_tabla = df_f[cols_tabla].sort_values("fecha", ascending=False).reset_index(drop=True)
         for _, row in df_tabla.iterrows():
             tend_val = str(row.get("tendencia", "") or "").lower()
             var_val  = row.get("var_precio", None)
@@ -906,7 +829,7 @@ def render_monitor_productos():
                 {cells_html}
             </div>
             """, unsafe_allow_html=True)
-        st.caption(f"Página {current_page} de {total_pages} — mostrando {page_start+1}–{min(page_end, total_rows)} de {total_rows} registros")
+        st.caption(f"{total_rows} registros totales")
     else:
         st.info("Sin datos disponibles con los filtros seleccionados")
 
