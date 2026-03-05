@@ -246,6 +246,10 @@ def render_sidebar():
 
         if st.button("🔄 Restablecer Datos", use_container_width=True):
             st.cache_data.clear()
+            # Limpiar todos los filtros y estado de paginación de todas las páginas
+            keys_to_clear = [k for k in st.session_state if k not in ("logged_in", "user_email", "user_name", "nav_target")]
+            for k in keys_to_clear:
+                del st.session_state[k]
             st.rerun()
         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
         if st.button("Cerrar sesión", use_container_width=True):
@@ -458,13 +462,11 @@ def render_mercados():
         filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...")
 
     with f2:
-        # Fecha — lista todos los días con datos, orden descendente
+        # Fecha — lista todos los días con datos, orden cronológico descendente
         fecha_opts = ["Todas"]
         if not df_c.empty and "fecha" in df_c.columns:
-            fecha_opts += sorted(
-                df_c["fecha"].dropna().apply(lambda d: d.strftime("%d/%m/%Y")).unique().tolist(),
-                reverse=True
-            )
+            fechas_unicas = sorted(df_c["fecha"].dropna().dt.normalize().unique(), reverse=True)
+            fecha_opts += [pd.Timestamp(f).strftime("%d/%m/%Y") for f in fechas_unicas]
         filtro_fecha = st.selectbox("Fecha", fecha_opts)
 
     with f3:
@@ -771,7 +773,6 @@ def render_monitor_productos():
     # CSS global para botones de paginación compactos y resaltado de página activa
     st.markdown("""
     <style>
-    /* Botones de paginación: columnas identificadas por data-key */
     [data-testid="stColumns"] .stButton > button {
         font-size: 0.65rem !important;
         font-weight: 600 !important;
@@ -793,32 +794,53 @@ def render_monitor_productos():
     with hdr_cols[2]:
         if total_pages > 1:
             MAX_VISIBLE = 6
-            # Ventana de páginas centrada en current_page
             half = MAX_VISIBLE // 2
             start_p = max(1, min(current_page - half, total_pages - MAX_VISIBLE + 1))
             end_p   = min(total_pages, start_p + MAX_VISIBLE - 1)
-            btn_labels = ["ant"] + [str(p) for p in range(start_p, end_p + 1)] + ["sig"]
-            all_cols   = st.columns(len(btn_labels))
-            for i, label in enumerate(btn_labels):
-                with all_cols[i]:
-                    if label == "ant":
-                        if st.button("ant", key="pg_ant", disabled=(current_page <= 1), use_container_width=True):
-                            st.session_state["prod_page"] = current_page - 1
+
+            parts = []
+            # ant
+            if current_page > 1:
+                parts.append(f'<span data-pg="{current_page - 1}" style="color:#27a05e;font-size:0.72rem;font-weight:600;cursor:pointer;padding:0 4px;" onclick="window.location.href=\'?pg={current_page - 1}\'">ant</span>')
+            else:
+                parts.append('<span style="color:#aacfbb;font-size:0.72rem;font-weight:600;padding:0 4px;cursor:default;">ant</span>')
+            # números
+            for p in range(start_p, end_p + 1):
+                if p == current_page:
+                    parts.append(f'<span style="color:#0d2b1a;font-size:0.72rem;font-weight:800;padding:0 5px;">{p}</span>')
+                else:
+                    parts.append(f'<span style="color:#27a05e;font-size:0.72rem;font-weight:500;padding:0 5px;">{p}</span>')
+            # sig
+            if current_page < total_pages:
+                parts.append(f'<span style="color:#27a05e;font-size:0.72rem;font-weight:600;padding:0 4px;">sig</span>')
+            else:
+                parts.append('<span style="color:#aacfbb;font-size:0.72rem;font-weight:600;padding:0 4px;cursor:default;">sig</span>')
+
+            st.markdown(
+                f'<div style="display:flex;align-items:center;height:44px;gap:2px;">{"".join(parts)}</div>',
+                unsafe_allow_html=True
+            )
+            # Botones invisibles para navegación real
+            nav_cols = st.columns(end_p - start_p + 3)
+            btn_idx = 0
+            with nav_cols[btn_idx]:
+                if current_page > 1:
+                    if st.button("◀", key="pg_ant", help="Anterior", use_container_width=True):
+                        st.session_state["prod_page"] = current_page - 1
+                        st.rerun()
+            btn_idx += 1
+            for p in range(start_p, end_p + 1):
+                with nav_cols[btn_idx]:
+                    if p != current_page:
+                        if st.button(f"{p}", key=f"pg_{p}", use_container_width=True):
+                            st.session_state["prod_page"] = p
                             st.rerun()
-                    elif label == "sig":
-                        if st.button("sig", key="pg_sig", disabled=(current_page >= total_pages), use_container_width=True):
-                            st.session_state["prod_page"] = current_page + 1
-                            st.rerun()
-                    else:
-                        p = int(label)
-                        is_active = (p == current_page)
-                        # Página activa: fondo verde oscuro + texto blanco via CSS inline en markdown
-                        if is_active:
-                            st.markdown(f'<div style="text-align:center;background:linear-gradient(135deg,#1f7a48,#27a05e);color:white;font-size:0.65rem;font-weight:700;border-radius:5px;height:20px;line-height:20px;cursor:default;border:1px solid #27a05e;">{p}</div>', unsafe_allow_html=True)
-                        else:
-                            if st.button(str(p), key=f"pg_{p}", use_container_width=True):
-                                st.session_state["prod_page"] = p
-                                st.rerun()
+                btn_idx += 1
+            with nav_cols[btn_idx]:
+                if current_page < total_pages:
+                    if st.button("▶", key="pg_sig", help="Siguiente", use_container_width=True):
+                        st.session_state["prod_page"] = current_page + 1
+                        st.rerun()
     with hdr_cols[3]:
         if not df_f.empty:
             import io
