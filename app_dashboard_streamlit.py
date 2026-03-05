@@ -445,7 +445,7 @@ def render_mercados():
     if not df_c.empty and "fecha" in df_c.columns:
         df_c["fecha"] = pd.to_datetime(df_c["fecha"])
 
-    f1, f2, f3 = st.columns([1, 1, 1.5])
+    f1, f2, f3, f4 = st.columns([1, 1, 1, 1.5])
 
     with f1:
         # Año-Mes — multiselect formato YYYY-MM, orden descendente
@@ -458,13 +458,23 @@ def render_mercados():
         filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...")
 
     with f2:
+        # Fecha — lista todos los días con datos, orden descendente
+        fecha_opts = ["Todas"]
+        if not df_c.empty and "fecha" in df_c.columns:
+            fecha_opts += sorted(
+                df_c["fecha"].dropna().apply(lambda d: d.strftime("%d/%m/%Y")).unique().tolist(),
+                reverse=True
+            )
+        filtro_fecha = st.selectbox("Fecha", fecha_opts)
+
+    with f3:
         # Mercado Referencia
         relacion_opts = ["Todos"]
         if not df_c.empty and "relacion" in df_c.columns:
             relacion_opts += sorted(df_c["relacion"].dropna().unique().tolist())
         filtro_relacion = st.selectbox("Mercado Referencia", relacion_opts)
 
-    with f3:
+    with f4:
         buscar_prod = st.text_input("🔍 Buscar mercado", placeholder="Nombre del mercado o producto...")
 
     n_emparejados = al_alza_merc = a_la_baja_merc = 0
@@ -496,6 +506,9 @@ def render_mercados():
         if filtro_periodo:
             mask = df_filt["fecha"].apply(lambda d: d.strftime("%Y-%m")).isin(filtro_periodo)
             df_filt = df_filt[mask]
+        # Filtro Fecha exacta
+        if filtro_fecha != "Todas":
+            df_filt = df_filt[df_filt["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")) == filtro_fecha]
         # Tomar último registro por producto dentro del periodo filtrado
         if not df_filt.empty:
             df_vis = df_filt.sort_values("fecha").groupby("producto").last().reset_index()
@@ -755,56 +768,57 @@ def render_monitor_productos():
         st.session_state["_prod_filter_key"] = filtro_key
     current_page = min(st.session_state["prod_page"], total_pages)
 
-    # CSS para miniaturizar botones de paginación
+    # CSS global para botones de paginación compactos y resaltado de página activa
     st.markdown("""
     <style>
-    div[data-testid="stHorizontalBlock"] div.pagination-zone button {
-        font-size: 0.72rem !important;
-        padding: 2px 6px !important;
-        min-height: 28px !important;
-        height: 28px !important;
-        line-height: 1 !important;
-    }
-    .pagination-zone .stButton button {
-        font-size: 0.72rem !important;
-        padding: 2px 7px !important;
-        min-height: 28px !important;
-        height: 28px !important;
+    /* Botones de paginación: columnas identificadas por data-key */
+    [data-testid="stColumns"] .stButton > button {
+        font-size: 0.65rem !important;
+        font-weight: 600 !important;
+        padding: 0px 4px !important;
+        min-height: 20px !important;
+        height: 20px !important;
+        line-height: 20px !important;
+        border-radius: 5px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
     # Fila: icono + título + paginación + Excel
-    hdr_cols = st.columns([0.05, 0.38, 0.45, 0.12])
+    hdr_cols = st.columns([0.05, 0.36, 0.47, 0.12])
     with hdr_cols[0]:
-        st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:4px;">📋</div>', unsafe_allow_html=True)
+        st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:2px;">📋</div>', unsafe_allow_html=True)
     with hdr_cols[1]:
-        st.markdown(f'<div style="padding-top:6px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Evolución de Productos Internacionales</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_header} &nbsp;·&nbsp; {total_rows} registros</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Evolución de Productos Internacionales</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_header} &nbsp;·&nbsp; {total_rows} registros</p></div>', unsafe_allow_html=True)
     with hdr_cols[2]:
-        # Paginación: ant + números + sig, con botones pequeños
         if total_pages > 1:
-            MAX_BTNS   = 6
-            num_cols   = min(total_pages, MAX_BTNS)
-            btn_labels = (["ant"] + [str(p) for p in range(1, min(total_pages, MAX_BTNS) + 1)] + ["sig"])
+            MAX_VISIBLE = 6
+            # Ventana de páginas centrada en current_page
+            half = MAX_VISIBLE // 2
+            start_p = max(1, min(current_page - half, total_pages - MAX_VISIBLE + 1))
+            end_p   = min(total_pages, start_p + MAX_VISIBLE - 1)
+            btn_labels = ["ant"] + [str(p) for p in range(start_p, end_p + 1)] + ["sig"]
             all_cols   = st.columns(len(btn_labels))
             for i, label in enumerate(btn_labels):
                 with all_cols[i]:
                     if label == "ant":
-                        disabled = current_page <= 1
-                        if st.button("ant", key="pg_ant", disabled=disabled, use_container_width=True):
+                        if st.button("ant", key="pg_ant", disabled=(current_page <= 1), use_container_width=True):
                             st.session_state["prod_page"] = current_page - 1
                             st.rerun()
                     elif label == "sig":
-                        disabled = current_page >= total_pages
-                        if st.button("sig", key="pg_sig", disabled=disabled, use_container_width=True):
+                        if st.button("sig", key="pg_sig", disabled=(current_page >= total_pages), use_container_width=True):
                             st.session_state["prod_page"] = current_page + 1
                             st.rerun()
                     else:
                         p = int(label)
-                        btn_type = "primary" if p == current_page else "secondary"
-                        if st.button(label, key=f"pg_{p}", type=btn_type, use_container_width=True):
-                            st.session_state["prod_page"] = p
-                            st.rerun()
+                        is_active = (p == current_page)
+                        # Página activa: fondo verde oscuro + texto blanco via CSS inline en markdown
+                        if is_active:
+                            st.markdown(f'<div style="text-align:center;background:linear-gradient(135deg,#1f7a48,#27a05e);color:white;font-size:0.65rem;font-weight:700;border-radius:5px;height:20px;line-height:20px;cursor:default;border:1px solid #27a05e;">{p}</div>', unsafe_allow_html=True)
+                        else:
+                            if st.button(str(p), key=f"pg_{p}", use_container_width=True):
+                                st.session_state["prod_page"] = p
+                                st.rerun()
     with hdr_cols[3]:
         if not df_f.empty:
             import io
