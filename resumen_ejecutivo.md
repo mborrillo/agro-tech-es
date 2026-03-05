@@ -114,7 +114,7 @@ Para obtener mas detalle de la definición y configuración de los umbrales, ver
 
 ## Estado actual
 
-- ✅ Dashboard operativo con datos reales de Supabase
+- ✅ Dashboard operativo con datos reales de Supabase: [agro-tech.streamlit.app](https://agro-tech.streamlit.app/)
 - ✅ Ingesta automática diaria: clima (AEMET), mercados (Yahoo Finance), energía (REE)
 - ✅ Secciones activas: Dashboard, Mapa de Operaciones, Monitor de Mercados, Monitor de Productos, Alertas
 - ✅ Exportación de datos a Excel
@@ -131,7 +131,18 @@ Construido sobre Python, Streamlit, Supabase (PostgreSQL) y GitHub Actions. Cód
 
 ---
 
-*Para consultas, inversión o integración institucional, contactarse via web:*
+## 🚀 Próximos Pasos: Únete a la Inteligencia de Mercados Agrícolas
+AgroTech está en fase de Validación. Nos interesa contactar con agricultores innovadores,gerentes de cooperativas que quieran:
+
+Reducir sus costes energéticos.
+
+Profesionalizar la toma de decisiones con datos en tiempo real.
+
+Probar la herramienta en su propia explotación sin compromiso.
+
+¿Te interesa optimizar tu próxima campaña?
+
+*Para inversión o integración institucional, contactarse via web:*
 https://marcos-borrillo.lovable.app
 Wsp: https://wa.link/vvzmot
 ---
