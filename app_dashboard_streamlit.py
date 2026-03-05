@@ -737,11 +737,67 @@ def render_monitor_productos():
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     fecha_header = ultimo_prod.strftime("%Y-%m-%d") if ultimo_prod is not None else "—"
-    section_header("📋", "Evolución de Productos Internacionales", f"Última actualización: {fecha_header}")
+
+    # ── Cabecera con botón Excel y paginación ──
+    ROWS_PER_PAGE = 50
+    if not df_f.empty:
+        total_rows   = len(df_f)
+        total_pages  = max(1, -(-total_rows // ROWS_PER_PAGE))  # ceil division
+    else:
+        total_rows = 0; total_pages = 1
+
+    if "prod_page" not in st.session_state:
+        st.session_state["prod_page"] = 1
+    # Resetear página si los filtros cambian
+    filtro_key = f"{filtro_periodo}{filtro_cat}{filtro_tend}{buscar_prod}"
+    if st.session_state.get("_prod_filter_key") != filtro_key:
+        st.session_state["prod_page"] = 1
+        st.session_state["_prod_filter_key"] = filtro_key
+    current_page = min(st.session_state["prod_page"], total_pages)
+
+    # Fila: título + paginación + Excel
+    hdr_cols = st.columns([0.06, 0.44, 0.38, 0.12])
+    with hdr_cols[0]:
+        st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:4px;">📋</div>', unsafe_allow_html=True)
+    with hdr_cols[1]:
+        st.markdown(f'<div style="padding-top:6px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Evolución de Productos Internacionales</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_header} &nbsp;·&nbsp; {total_rows} registros</p></div>', unsafe_allow_html=True)
+    with hdr_cols[2]:
+        # Paginación inline
+        if total_pages > 1:
+            page_btns = st.columns(min(total_pages, 8))
+            for i, pb in enumerate(page_btns):
+                p = i + 1
+                if p > total_pages:
+                    break
+                btn_style = "primary" if p == current_page else "secondary"
+                with pb:
+                    if st.button(str(p), key=f"pg_{p}", type=btn_style, use_container_width=True):
+                        st.session_state["prod_page"] = p
+                        st.rerun()
+    with hdr_cols[3]:
+        if not df_f.empty:
+            import io
+            output = io.BytesIO()
+            cols_export = [c for c in ["fecha", "producto", "precio_cierre", "moneda", "var_precio", "categoria", "tendencia"] if c in df_f.columns]
+            df_export = df_f[cols_export].sort_values("fecha", ascending=False).reset_index(drop=True)
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                df_export.to_excel(writer, index=False, sheet_name="Productos")
+            st.download_button(
+                label="📥 Excel",
+                data=output.getvalue(),
+                file_name=f"productos_internacionales_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
+    st.markdown("<div style='border-bottom:2px solid #d1ead9;margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
     if not df_f.empty:
         cols_tabla = [c for c in ["fecha", "producto", "precio_cierre", "moneda", "var_precio", "categoria", "tendencia"] if c in df_f.columns]
         col_widths = "1.2fr " + " ".join(["1.4fr"] * (len(cols_tabla) - 1))
+        # Calcular slice de la página actual
+        page_start = (current_page - 1) * ROWS_PER_PAGE
+        page_end   = page_start + ROWS_PER_PAGE
         col_labels = {"fecha": "Fecha", "producto": "Producto", "precio_cierre": "Precio Cierre", "moneda": "Moneda", "var_precio": "Var. Precio", "categoria": "Categoría", "tendencia": "Tendencia"}
         header_html = "".join([f'<span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">{col_labels.get(c, c)}</span>' for c in cols_tabla])
         st.markdown(f"""
@@ -750,7 +806,8 @@ def render_monitor_productos():
         </div>
         """, unsafe_allow_html=True)
 
-        df_tabla = df_f[cols_tabla].sort_values("fecha", ascending=False).head(100).reset_index(drop=True)
+        df_sorted = df_f[cols_tabla].sort_values("fecha", ascending=False).reset_index(drop=True)
+        df_tabla  = df_sorted.iloc[page_start:page_end]
         for _, row in df_tabla.iterrows():
             tend_val = str(row.get("tendencia", "") or "").lower()
             var_val  = row.get("var_precio", None)
@@ -790,8 +847,7 @@ def render_monitor_productos():
                 {cells_html}
             </div>
             """, unsafe_allow_html=True)
-        if len(df_f) > 100:
-            st.caption(f"Mostrando los 100 registros más recientes de {len(df_f)} totales.")
+        st.caption(f"Página {current_page} de {total_pages} — mostrando {page_start+1}–{min(page_end, total_rows)} de {total_rows} registros")
     else:
         st.info("Sin datos disponibles con los filtros seleccionados")
 
