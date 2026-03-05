@@ -641,7 +641,7 @@ def render_monitor_productos():
     if not df.empty and "fecha" in df.columns:
         df["fecha"] = pd.to_datetime(df["fecha"])
 
-    f1, f2, f3, f4 = st.columns([1, 1, 1, 1.5])
+    f1, f2, f3, f4, f5 = st.columns([1, 1, 1, 1, 1.5])
     with f1:
         # Año-Mes — multiselect formato YYYY-MM, orden descendente
         anio_mes_opts = []
@@ -652,16 +652,23 @@ def render_monitor_productos():
             )
         filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...")
     with f2:
+        # Fecha — días con datos, orden cronológico descendente
+        fecha_dia_opts = ["Todas"]
+        if not df.empty and "fecha" in df.columns:
+            fechas_unicas = sorted(df["fecha"].dropna().dt.normalize().unique(), reverse=True)
+            fecha_dia_opts += [pd.Timestamp(f).strftime("%d/%m/%Y") for f in fechas_unicas]
+        filtro_fecha_dia = st.selectbox("Fecha", fecha_dia_opts)
+    with f3:
         cat_opts = ["Todas"]
         if not df.empty and "categoria" in df.columns:
             cat_opts += sorted(df["categoria"].dropna().unique().tolist())
         filtro_cat = st.selectbox("Categoría", cat_opts)
-    with f3:
+    with f4:
         tend_opts = ["Todas"]
         if not df.empty and "tendencia" in df.columns:
             tend_opts += sorted(df["tendencia"].dropna().unique().tolist())
         filtro_tend = st.selectbox("Tendencia", tend_opts)
-    with f4:
+    with f5:
         buscar_prod = st.text_input("🔍 Buscar producto", placeholder="Nombre del producto...")
 
     ultimo_prod = None; n_productos_int = n_alza = n_baja = 0
@@ -686,6 +693,9 @@ def render_monitor_productos():
     if filtro_periodo and "fecha" in df_f.columns:
         mask = df_f["fecha"].apply(lambda d: d.strftime("%Y-%m")).isin(filtro_periodo)
         df_f = df_f[mask]
+    # Filtro Fecha día exacto
+    if filtro_fecha_dia != "Todas" and "fecha" in df_f.columns:
+        df_f = df_f[df_f["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")) == filtro_fecha_dia]
     if filtro_cat != "Todas" and "categoria" in df_f.columns:
         df_f = df_f[df_f["categoria"] == filtro_cat]
     if filtro_tend != "Todas" and "tendencia" in df_f.columns:
