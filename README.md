@@ -31,7 +31,7 @@ Los agricultores y cooperativas de Extremadura operan con información fragmenta
 
 ---
 
-## Funcionalidades del Dashboard
+## Funcionalidades del Sistema
 
 - **Dashboard principal** — KPIs de temperatura, humedad, precio kWh, alertas activas y salud por sector
 - **Mapa de Operaciones** — Estaciones geolocalizadas con estado (Óptimo / Precaución / Crítico) según tratamiento
@@ -39,6 +39,14 @@ Los agricultores y cooperativas de Extremadura operan con información fragmenta
 - **Monitor de Productos** — Evolución histórica de precios internacionales por categoría, exportable a Excel
 - **Centro de Alertas** — Clima extremo y energía con estado por franja horaria
 - **Configuración** — Estado de conexión a Supabase y estadísticas de tablas
+
+---
+
+## Impacto del Cambio
+Antes de AgroTech,Con AgroTech
+Riego basado en intuición o turno fijo.,Riego basado en coste €/kWh en tiempo real.
+Tratamientos con riesgo de deriva o evaporación.,Ventanas de aplicación con precisión meteorológica.
+Incertidumbre en el precio de venta local.,Arbitraje de precios con mercados internacionales.
 
 ---
 
