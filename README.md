@@ -184,4 +184,4 @@ Los scripts ETL se ejecutan via **GitHub Actions** con el schedule definido en `
 
 ## Licencia
 
-MIT — libre para usar, adaptar y distribuir con atribución.
+MIT — 2026.
