@@ -755,25 +755,56 @@ def render_monitor_productos():
         st.session_state["_prod_filter_key"] = filtro_key
     current_page = min(st.session_state["prod_page"], total_pages)
 
-    # Fila: título + paginación + Excel
-    hdr_cols = st.columns([0.06, 0.44, 0.38, 0.12])
+    # CSS para miniaturizar botones de paginación
+    st.markdown("""
+    <style>
+    div[data-testid="stHorizontalBlock"] div.pagination-zone button {
+        font-size: 0.72rem !important;
+        padding: 2px 6px !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        line-height: 1 !important;
+    }
+    .pagination-zone .stButton button {
+        font-size: 0.72rem !important;
+        padding: 2px 7px !important;
+        min-height: 28px !important;
+        height: 28px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Fila: icono + título + paginación + Excel
+    hdr_cols = st.columns([0.05, 0.38, 0.45, 0.12])
     with hdr_cols[0]:
         st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:4px;">📋</div>', unsafe_allow_html=True)
     with hdr_cols[1]:
         st.markdown(f'<div style="padding-top:6px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Evolución de Productos Internacionales</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_header} &nbsp;·&nbsp; {total_rows} registros</p></div>', unsafe_allow_html=True)
     with hdr_cols[2]:
-        # Paginación inline
+        # Paginación: ant + números + sig, con botones pequeños
         if total_pages > 1:
-            page_btns = st.columns(min(total_pages, 8))
-            for i, pb in enumerate(page_btns):
-                p = i + 1
-                if p > total_pages:
-                    break
-                btn_style = "primary" if p == current_page else "secondary"
-                with pb:
-                    if st.button(str(p), key=f"pg_{p}", type=btn_style, use_container_width=True):
-                        st.session_state["prod_page"] = p
-                        st.rerun()
+            MAX_BTNS   = 6
+            num_cols   = min(total_pages, MAX_BTNS)
+            btn_labels = (["ant"] + [str(p) for p in range(1, min(total_pages, MAX_BTNS) + 1)] + ["sig"])
+            all_cols   = st.columns(len(btn_labels))
+            for i, label in enumerate(btn_labels):
+                with all_cols[i]:
+                    if label == "ant":
+                        disabled = current_page <= 1
+                        if st.button("ant", key="pg_ant", disabled=disabled, use_container_width=True):
+                            st.session_state["prod_page"] = current_page - 1
+                            st.rerun()
+                    elif label == "sig":
+                        disabled = current_page >= total_pages
+                        if st.button("sig", key="pg_sig", disabled=disabled, use_container_width=True):
+                            st.session_state["prod_page"] = current_page + 1
+                            st.rerun()
+                    else:
+                        p = int(label)
+                        btn_type = "primary" if p == current_page else "secondary"
+                        if st.button(label, key=f"pg_{p}", type=btn_type, use_container_width=True):
+                            st.session_state["prod_page"] = p
+                            st.rerun()
     with hdr_cols[3]:
         if not df_f.empty:
             import io
