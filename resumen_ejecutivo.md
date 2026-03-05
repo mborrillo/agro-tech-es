@@ -65,6 +65,9 @@ La digitalización del campo ya no es una opción futura: es una ventaja competi
 
 Extremadura tiene una producción agraria de alto valor — aceite de oliva, corcho, pimentón, ganadería extensiva — pero históricamente ha competido con información limitada. Esta herramienta cambia eso, ya que fue construida específicamente para esta región (y otras con necesidades similares),para potenciar sus cultivos y sus mercados agricolas.
 
+## Definicion de Umbrales
+Para obtener mas detalle de la definición y configuración de los umbrales, ver: Interpretación de Umbrales AgroTech.md
+
 ---
 
 ## Vistas SQL del Modelo
