@@ -43,10 +43,10 @@ Los agricultores y cooperativas de Extremadura operan con información fragmenta
 ---
 
 ## Impacto del Cambio
-Antes de AgroTech,Con AgroTech
-Riego basado en intuición o turno fijo.,Riego basado en coste €/kWh en tiempo real.
-Tratamientos con riesgo de deriva o evaporación.,Ventanas de aplicación con precisión meteorológica.
-Incertidumbre en el precio de venta local.,Arbitraje de precios con mercados internacionales.
+| Ahora | Valor Diferencial de AgroTech |
+| **Riego basado en intuición o turno fijo** | Riego basado en coste €/kWh en tiempo real |
+| **Tratamientos con riesgo de deriva o evaporación** | Ventanas de aplicación con precisión meteorológica |
+| **Incertidumbre en el precio de venta local** | Arbitraje de precios con mercados internacionales |
 
 ---
 
