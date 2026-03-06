@@ -52,7 +52,6 @@ ESTACIONES_EXTREMADURA = {
     "4492F": {"nombre": "BARCARROTA", "lat": 38.282, "lon": -6.5524, "altitud": 377},
     "4325Y": {"nombre": "CASTUERA", "lat": 38.443, "lon": -5.3145, "altitud": 459},
     "3531X": {"nombre": "TORRECILLA DE LOS ANGELES", "lat": 40.245, "lon": -6.467, "altitud": 459},
-    # Estaciones añadidas
     "4452X": {"nombre": "ALCONCHEL", "lat": 38.800, "lon": -7.000, "altitud": 170},
     "3484X": {"nombre": "AZUAGA", "lat": 38.367, "lon": -5.800, "altitud": 581},
     "3525X": {"nombre": "BROZAS", "lat": 39.600, "lon": -5.700, "altitud": 425},
