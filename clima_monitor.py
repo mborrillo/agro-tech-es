@@ -52,6 +52,7 @@ ESTACIONES_EXTREMADURA = {
     "4492F": {"nombre": "BARCARROTA", "lat": 38.282, "lon": -6.5524, "altitud": 377},
     "4325Y": {"nombre": "CASTUERA", "lat": 38.443, "lon": -5.3145, "altitud": 459},
     "3531X": {"nombre": "TORRECILLA DE LOS ANGELES", "lat": 40.245, "lon": -6.467, "altitud": 459},
+    # Estaciones añadidas
     "4452X": {"nombre": "ALCONCHEL", "lat": 38.800, "lon": -7.000, "altitud": 170},
     "3484X": {"nombre": "AZUAGA", "lat": 38.367, "lon": -5.800, "altitud": 581},
     "3525X": {"nombre": "BROZAS", "lat": 39.600, "lon": -5.700, "altitud": 425},
@@ -107,9 +108,8 @@ def obtener_clima():
 def obtener_clima_inteligente():
     print(f"🌦️ Iniciando captura de clima inteligente: {datetime.now()}")
     
-    ciudades = {"BADAJOZ": "4478X", "CÁCERES": "3469A", "MÉRIDA": "4410X", "ALMENDRALEJO": "4436Y", "DON BENITO": "4358X", "OLIVENZA": "4486X", "ZAFRA": "4427X","HERVÁS":"3504X","PLASENCIA":"3519X","NAVALMORAL DE LA MATA":"3434X","LLERENA":"4386B","ALCUESCAR":"4411C","TRUJILLO - Espáña":"3463Y", 
-                "JEREZ DE LOS CABALLEROS":"4511C", "FUENTE DE CANTOS":"4501X", "MONESTERIO":"4499X", "VALENCIA DE ALCÁNTARA":"3576X","HERRERA DEL DUQUE":"4244X","FREGENAL DE LA SIERRA":"4520X","PUEBLA DE OBANDO":"4468X","VILLAFRANCA DE LOS BARROS":"4395X","RETAMAL DE LLERENA":"4362X",
-                "ALISEDA":"3562X","CAÑAVERAL-España":"3475X","GARGANTA LA OLLA":"3436D","JARAICEJO":"3455X","PUERTO REY":"4236Y","TORRECILLA DE LOS ANGELES":"3531X"}
+    # Construido dinámicamente desde ESTACIONES_EXTREMADURA — agregar estaciones solo ahí
+    ciudades = {info["nombre"]: id_est for id_est, info in ESTACIONES_EXTREMADURA.items()}
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
     for ciudad, id_estacion in ciudades.items():
