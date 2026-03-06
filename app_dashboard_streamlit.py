@@ -246,19 +246,10 @@ def render_sidebar():
 
         if st.button("🔄 Restablecer Datos", use_container_width=True):
             st.cache_data.clear()
-            # Keys de todos los filtros de todas las páginas
-            filter_keys = [
-                "mapa_tratamiento", "mapa_riego", "mapa_buscar",
-                "merc_anio_mes", "merc_fecha", "merc_relacion", "merc_buscar",
-                "prod_anio_mes", "prod_fecha", "prod_categoria", "prod_tendencia", "prod_buscar",
-            ]
+            # Limpiar todos los filtros y estado de paginación de todas las páginas
             keys_to_clear = [k for k in st.session_state if k not in ("logged_in", "user_email", "user_name", "nav_target")]
             for k in keys_to_clear:
                 del st.session_state[k]
-            # Forzar reset de widgets con key explícita
-            for k in filter_keys:
-                if k in st.session_state:
-                    del st.session_state[k]
             st.rerun()
         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
         if st.button("Cerrar sesión", use_container_width=True):
@@ -277,7 +268,7 @@ def render_dashboard():
         temp  = df_mapa["temp_actual"].mean()     if "temp_actual"   in df_mapa else None
         hum   = df_mapa["humedad"].mean()          if "humedad"       in df_mapa else None
         kwh   = df_mapa["precio_kwh"].mean()       if "precio_kwh"    in df_mapa else None
-        tramo = df_mapa["tramo_energia"].mode()[0] if "tramo_energia" in df_mapa else "—"
+        tramo = df_mapa["luz_estado"].mode()[0] if "luz_estado" in df_mapa else "—"
     else:
         temp = hum = kwh = None; tramo = "—"
 
@@ -357,21 +348,28 @@ def render_mapa():
         st.warning("Sin datos de localización en v_mapa_operaciones")
         return
 
-    f1, f2, f3 = st.columns([1, 1, 2])
+    f1, f2, f3, f4 = st.columns([1, 1, 1, 2])
     with f1:
+        comarca_opts = ["Todas"]
+        if "comarca" in df.columns:
+            comarca_opts += sorted(df["comarca"].dropna().unique().tolist())
+        filtro_comarca = st.selectbox("Comarca", comarca_opts, key="mapa_comarca")
+    with f2:
         tratamiento_opts = ["Todos"]
         if "recomendacion_tratamiento" in df.columns:
             tratamiento_opts += sorted(df["recomendacion_tratamiento"].dropna().unique().tolist())
         filtro_trat = st.selectbox("Tratamiento", tratamiento_opts, key="mapa_tratamiento")
-    with f2:
+    with f3:
         riego_opts = ["Todos"]
         if "recomendacion_riego" in df.columns:
             riego_opts += sorted(df["recomendacion_riego"].dropna().unique().tolist())
         filtro_riego = st.selectbox("Riego", riego_opts, key="mapa_riego")
-    with f3:
+    with f4:
         buscar = st.text_input("🔍 Buscar estación", placeholder="Nombre de estación...", key="mapa_buscar")
 
     df_filtered = df.copy()
+    if filtro_comarca != "Todas" and "comarca" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["comarca"] == filtro_comarca]
     if filtro_trat != "Todos" and "recomendacion_tratamiento" in df_filtered.columns:
         df_filtered = df_filtered[df_filtered["recomendacion_tratamiento"] == filtro_trat]
     if filtro_riego != "Todos" and "recomendacion_riego" in df_filtered.columns:
@@ -468,7 +466,7 @@ def render_mercados():
                 df_c["fecha"].dropna().apply(lambda d: d.strftime("%Y-%m")).unique().tolist(),
                 reverse=True
             )
-        filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...", key="merc_anio_mes")
+        filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...")
 
     with f2:
         # Fecha — lista todos los días con datos, orden cronológico descendente
@@ -476,17 +474,17 @@ def render_mercados():
         if not df_c.empty and "fecha" in df_c.columns:
             fechas_unicas = sorted(df_c["fecha"].dropna().dt.normalize().unique(), reverse=True)
             fecha_opts += [pd.Timestamp(f).strftime("%d/%m/%Y") for f in fechas_unicas]
-        filtro_fecha = st.selectbox("Fecha", fecha_opts, key="merc_fecha")
+        filtro_fecha = st.selectbox("Fecha", fecha_opts)
 
     with f3:
         # Mercado Referencia
         relacion_opts = ["Todos"]
         if not df_c.empty and "relacion" in df_c.columns:
             relacion_opts += sorted(df_c["relacion"].dropna().unique().tolist())
-        filtro_relacion = st.selectbox("Mercado Referencia", relacion_opts, key="merc_relacion")
+        filtro_relacion = st.selectbox("Mercado Referencia", relacion_opts)
 
     with f4:
-        buscar_prod = st.text_input("🔍 Buscar mercado", placeholder="Nombre del mercado o producto...", key="merc_buscar")
+        buscar_prod = st.text_input("🔍 Buscar mercado", placeholder="Nombre del mercado o producto...")
 
     n_emparejados = al_alza_merc = a_la_baja_merc = 0
     ultimo = None
@@ -592,15 +590,10 @@ def render_mercados():
     section_header("🗓️", "Precios del Día", f"Última actualización: {fecha_str_header}")
 
     if not df_vis.empty:
-        # Orden descendente por fecha
-        if "fecha" in df_vis.columns:
-            df_vis = df_vis.sort_values("fecha", ascending=False).reset_index(drop=True)
-
         st.markdown("""
-        <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+        <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                     padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;
                     border:1px solid var(--border);border-bottom:2px solid var(--border);margin-bottom:2px;">
-            <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Fecha</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Producto</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Local (€/kg)</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Internacional (€/kg)</span>
@@ -616,10 +609,6 @@ def render_mercados():
             sign  = "+" if dif > 0 else ""
             b_bg  = "#dcfce7" if dif > 0 else "#fee2e2"
             b_col = "#15803d" if dif > 0 else "#b91c1c"
-            try:
-                fecha_row = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
-            except Exception:
-                fecha_row = str(row.get("fecha", "—"))
             if dif > 0:
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,13 8,7 13,10 20,3" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,3 20,3 20,8" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             elif dif < 0:
@@ -627,10 +616,9 @@ def render_mercados():
             else:
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             st.markdown(f"""
-            <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+            <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                         align-items:center;padding:14px 20px;background:white;
                         border:1px solid var(--border);border-top:none;margin-bottom:0;">
-                <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_row}</span>
                 <span style="font-weight:600;font-size:0.9rem;color:#0d2b1a;">{row.get('producto','—')}</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#1a5c38;">{local:.2f} €/kg</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">{intl:.2f} €/kg</span>
@@ -669,26 +657,26 @@ def render_monitor_productos():
                 df["fecha"].dropna().apply(lambda d: d.strftime("%Y-%m")).unique().tolist(),
                 reverse=True
             )
-        filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...", key="prod_anio_mes")
+        filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los periodos...")
     with f2:
         # Fecha — días con datos, orden cronológico descendente
         fecha_dia_opts = ["Todas"]
         if not df.empty and "fecha" in df.columns:
             fechas_unicas = sorted(df["fecha"].dropna().dt.normalize().unique(), reverse=True)
             fecha_dia_opts += [pd.Timestamp(f).strftime("%d/%m/%Y") for f in fechas_unicas]
-        filtro_fecha_dia = st.selectbox("Fecha", fecha_dia_opts, key="prod_fecha")
+        filtro_fecha_dia = st.selectbox("Fecha", fecha_dia_opts)
     with f3:
         cat_opts = ["Todas"]
         if not df.empty and "categoria" in df.columns:
             cat_opts += sorted(df["categoria"].dropna().unique().tolist())
-        filtro_cat = st.selectbox("Categoría", cat_opts, key="prod_categoria")
+        filtro_cat = st.selectbox("Categoría", cat_opts)
     with f4:
         tend_opts = ["Todas"]
         if not df.empty and "tendencia" in df.columns:
             tend_opts += sorted(df["tendencia"].dropna().unique().tolist())
-        filtro_tend = st.selectbox("Tendencia", tend_opts, key="prod_tendencia")
+        filtro_tend = st.selectbox("Tendencia", tend_opts)
     with f5:
-        buscar_prod = st.text_input("🔍 Buscar producto", placeholder="Nombre del producto...", key="prod_buscar")
+        buscar_prod = st.text_input("🔍 Buscar producto", placeholder="Nombre del producto...")
 
     ultimo_prod = None; n_productos_int = n_alza = n_baja = 0
     if not df.empty:
