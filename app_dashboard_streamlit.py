@@ -248,7 +248,7 @@ def render_sidebar():
             st.cache_data.clear()
             # Keys de todos los filtros de todas las páginas
             filter_keys = [
-                "mapa_comarca", "mapa_tratamiento", "mapa_riego", "mapa_buscar",
+                "mapa_tratamiento", "mapa_riego", "mapa_buscar",
                 "merc_anio_mes", "merc_fecha", "merc_relacion", "merc_buscar",
                 "prod_anio_mes", "prod_fecha", "prod_categoria", "prod_tendencia", "prod_buscar",
             ]
@@ -357,28 +357,21 @@ def render_mapa():
         st.warning("Sin datos de localización en v_mapa_operaciones")
         return
 
-    f1, f2, f3, f4 = st.columns([1, 1, 1, 2])
+    f1, f2, f3 = st.columns([1, 1, 2])
     with f1:
-        comarca_opts = ["Todas"]
-        if "comarca" in df.columns:
-            comarca_opts += sorted(df["comarca"].dropna().unique().tolist())
-        filtro_comarca = st.selectbox("Comarca", comarca_opts, key="mapa_comarca")
-    with f2:
         tratamiento_opts = ["Todos"]
         if "recomendacion_tratamiento" in df.columns:
             tratamiento_opts += sorted(df["recomendacion_tratamiento"].dropna().unique().tolist())
         filtro_trat = st.selectbox("Tratamiento", tratamiento_opts, key="mapa_tratamiento")
-    with f3:
+    with f2:
         riego_opts = ["Todos"]
         if "recomendacion_riego" in df.columns:
             riego_opts += sorted(df["recomendacion_riego"].dropna().unique().tolist())
         filtro_riego = st.selectbox("Riego", riego_opts, key="mapa_riego")
-    with f4:
+    with f3:
         buscar = st.text_input("🔍 Buscar estación", placeholder="Nombre de estación...", key="mapa_buscar")
 
     df_filtered = df.copy()
-    if filtro_comarca != "Todas" and "comarca" in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered["comarca"] == filtro_comarca]
     if filtro_trat != "Todos" and "recomendacion_tratamiento" in df_filtered.columns:
         df_filtered = df_filtered[df_filtered["recomendacion_tratamiento"] == filtro_trat]
     if filtro_riego != "Todos" and "recomendacion_riego" in df_filtered.columns:
