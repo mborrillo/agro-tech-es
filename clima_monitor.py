@@ -9,6 +9,7 @@
 
 import os
 import requests
+from requests.adapters import HTTPAdapter
 from supabase import create_client, Client
 from datetime import datetime
 import sys
@@ -114,18 +115,26 @@ def obtener_clima_inteligente():
     ciudades = {info["nombre"]: id_est for id_est, info in ESTACIONES_EXTREMADURA.items()}
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
+    # Sesión reutilizable para reducir overhead de conexión
+    session = requests.Session()
+    adapter = HTTPAdapter(max_retries=1)
+    session.mount("https://", adapter)
+
     for ciudad, id_estacion in ciudades.items():
         url_aemet = f"https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/{id_estacion}"
         params = {"api_key": AEMET_API_KEY}
 
         try:
-            r = requests.get(url_aemet, params=params, timeout=15)
+            r = session.get(url_aemet, params=params, timeout=8)
+            if r.status_code != 200:
+                print(f"⚠️  {ciudad}: AEMET status {r.status_code}")
+                continue
             if r.status_code == 200:
                 datos_url = r.json().get('datos')
                 if not datos_url:
                     print(f"⚠️  {ciudad}: AEMET no devolvió URL de datos (estación sin lecturas)")
                     continue
-                resp_datos = requests.get(datos_url, timeout=15)
+                resp_datos = session.get(datos_url, timeout=8)
                 if resp_datos.status_code != 200 or not resp_datos.text.strip():
                     print(f"⚠️  {ciudad}: respuesta vacía de AEMET")
                     continue
