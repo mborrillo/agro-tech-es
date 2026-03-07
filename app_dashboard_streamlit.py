@@ -853,7 +853,7 @@ def render_monitor_productos():
 def render_alertas():
     page_hero("🔔 Notificaciones", "Centro de Alertas", "Clima extremo y energía — actualizados automáticamente")
     df_clima = load("v_alertas_clima_extrema", order_col="fecha")
-    df_energ = load("v_alertas_energia",       order_col="fecha")
+    df_energ = load("v_resumen_energia",       order_col="fecha")
 
     c1, c2, c3, c4 = st.columns(4)
     n_cl = int(df_clima["alerta_riesgo"].notna().sum()) if not df_clima.empty and "alerta_riesgo" in df_clima.columns else 0
@@ -904,41 +904,56 @@ def render_alertas():
             st.info("Sin alertas de clima disponibles")
 
     with col_en:
-        section_header("⚡", "Alertas de Energía", "v_alertas_energia — precio €/kWh por tramo")
+        section_header("⚡", "Precio Energía", "v_resumen_energia — media diaria €/kWh")
         if not df_energ.empty:
             df_e = df_energ.copy()
             df_e["fecha"] = pd.to_datetime(df_e["fecha"])
-            df_e = df_e.sort_values(["fecha", "hora"], ascending=False)
-            for _, row in df_e.head(10).iterrows():
+            df_e = df_e.sort_values("fecha", ascending=False)
+            for _, row in df_e.head(7).iterrows():
                 estado = str(row.get("estado_costo", "") or "").lower()
-                if any(x in estado for x in ["caro", "alto", "punta"]): dot, cls = "dot-red", "alert-critical"
-                elif any(x in estado for x in ["medio", "llano"]): dot, cls = "dot-amber", "alert-warning"
-                else: dot, cls = "dot-green", "alert-ok"
-                vs_med = float(row.get("vs_media", 0) or 0)
-                sign   = "+" if vs_med > 0 else ""
+                if any(x in estado for x in ["caro", "alto"]): dot, cls = "dot-red", "alert-critical"
+                elif "normal" in estado:                        dot, cls = "dot-amber", "alert-warning"
+                else:                                           dot, cls = "dot-green", "alert-ok"
+                var_p  = row.get("var_per_prev", None)
+                var_str = f"{'+' if var_p > 0 else ''}{var_p:.1f}% vs ayer" if var_p is not None else "sin ref."
+                var_color = "#ef4444" if var_p and var_p > 0 else "#27a05e" if var_p and var_p < 0 else "#7aa98e"
+                hora_min = row.get("hora_min", "—")
+                hora_max = row.get("hora_max", "—")
+                p_min    = row.get("precio_min", "—")
+                p_max    = row.get("precio_max", "—")
+                tramo    = row.get("tramo_mayoria", "—")
                 fecha_str = row["fecha"].strftime("%d/%m/%Y") if hasattr(row["fecha"], "strftime") else str(row["fecha"])
                 st.markdown(f"""
                 <div class="alert-item {cls}">
                     <div class="alert-dot {dot}"></div>
                     <div style="flex:1">
-                        <div class="alert-title">Hora {row.get('hora','—')}:00 — {row.get('tramo','—')}</div>
-                        <div class="alert-desc">⚡ <b class="mono">{row.get('precio_kwh','—')} €/kWh</b> &nbsp;| vs media: <b>{sign}{vs_med:.3f} €</b></div>
-                        <div class="alert-desc">{row.get('estado_costo','—')}</div>
+                        <div class="alert-title">Media: <b class="mono">{row.get('precio_medio','—')} €/kWh</b> &nbsp;<span style="font-size:0.8rem;color:{var_color};font-weight:600;">{var_str}</span></div>
+                        <div class="alert-desc">🔋 Mín: <b>{p_min} €</b> a las {hora_min}h &nbsp;|&nbsp; Máx: <b>{p_max} €</b> a las {hora_max}h</div>
+                        <div class="alert-desc">⚡ Tramo predominante: <b>{tramo}</b> &nbsp;|&nbsp; {row.get('recomendacion_consumo','—')}</div>
                         <div class="alert-time">📅 {fecha_str}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-            df_ult_dia = df_e[df_e["fecha"] == df_e["fecha"].max()].sort_values("hora")
-            if not df_ult_dia.empty and "hora" in df_ult_dia.columns:
-                colores_h = df_ult_dia["tramo"].apply(lambda t: "#ef4444" if "punta" in str(t).lower() else "#f59e0b" if "llano" in str(t).lower() else "#27a05e") if "tramo" in df_ult_dia.columns else ["#27a05e"] * len(df_ult_dia)
-                fig2 = go.Figure(go.Bar(x=df_ult_dia["hora"], y=df_ult_dia["precio_kwh"], marker_color=colores_h, opacity=0.85, hovertemplate="Hora %{x}:00<br>%{y} €/kWh<extra></extra>"))
+            # Gráfico evolución precio medio diario
+            df_plot = df_e.sort_values("fecha").tail(30)
+            if len(df_plot) > 1 and "precio_medio" in df_plot.columns:
+                colores_b = df_plot["tramo_mayoria"].apply(
+                    lambda t: "#ef4444" if "punta" in str(t).lower()
+                    else "#f59e0b" if "llano" in str(t).lower()
+                    else "#27a05e"
+                ) if "tramo_mayoria" in df_plot.columns else ["#27a05e"] * len(df_plot)
+                fig2 = go.Figure(go.Bar(
+                    x=df_plot["fecha"], y=df_plot["precio_medio"],
+                    marker_color=colores_b, opacity=0.85,
+                    hovertemplate="%{x|%d/%m}<br>%{y:.4f} €/kWh<extra></extra>"
+                ))
                 layout2 = {**CHART_LAYOUT}
-                layout2["xaxis"] = dict(showgrid=False, color="#7aa98e", title="Hora del día")
-                layout2["yaxis"] = dict(gridcolor="#e8f5ee", color="#7aa98e", title="€/kWh")
+                layout2["xaxis"] = dict(showgrid=False, color="#7aa98e", title="Fecha")
+                layout2["yaxis"] = dict(gridcolor="#e8f5ee", color="#7aa98e", title="€/kWh medio")
                 fig2.update_layout(height=200, **layout2)
                 st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
         else:
-            st.info("Sin alertas de energía disponibles")
+            st.info("Sin datos de energía disponibles")
 
 def render_configuracion():
     page_hero("⚙️ Ajustes", "Configuración del Sistema", "Secrets de Supabase, AEMET y diagnóstico de conexiones")
@@ -968,14 +983,14 @@ def render_configuracion():
         section_header("📊", "Tablas y vistas disponibles", "Estado de cada fuente de datos")
         tablas = [
             ("datos_clima",             "🌤️", "Meteorología histórica",     "13 cols"),
-            ("datos_energia",           "⚡", "Precios energía eléctrica",  "7 cols"),
+            ("datos_energias",          "⚡", "Precios energía eléctrica",  "8 cols"),
             ("precios_agricolas",       "🌾", "Precios lonja",              "14 cols"),
             ("mercados_internacionales","🌍", "Mercados internacionales",   "9 cols"),
             ("mapeo_productos",         "🗂️", "Catálogo productos",        "4 cols"),
             ("v_mapa_operaciones",      "📍", "Vista mapa estaciones",      "12 cols"),
             ("v_salud_sectores",        "💚", "Vista salud sectores",       "6 cols"),
             ("v_alertas_clima_extrema", "🌩️", "Vista alertas clima",       "5 cols"),
-            ("v_alertas_energia",       "⚡", "Vista alertas energía",      "6 cols"),
+            ("v_resumen_energia",       "⚡", "Vista alertas energía",      "6 cols"),
             ("v_comparativa_mercados",  "📊", "Vista comparativa",          "6 cols"),
         ]
         sb = get_supabase()
