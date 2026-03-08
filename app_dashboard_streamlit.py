@@ -624,12 +624,19 @@ def render_mercados():
     section_header("📊", "Diferencial de Arbitraje (€/kg)", "Verde: precio local superior al internacional · Rojo: precio local inferior al internacional")
 
     # Split DIRECTO / PROXY según tipo_referencia
-    if not df_vis.empty and "tipo_referencia" in df_vis.columns:
+    # Si el campo no existe (vista vieja), clasificar por activo_referencia conocido
+    ACTIVOS_DIRECTO = {"trigo", "maiz", "soja", "arroz"}
+    if not df_vis.empty and "tipo_referencia" in df_vis.columns and df_vis["tipo_referencia"].notna().any():
         df_directo = df_vis[df_vis["tipo_referencia"].str.upper() == "DIRECTO"].copy()
         df_proxy   = df_vis[df_vis["tipo_referencia"].str.upper() == "PROXY"].copy()
-    elif not df_vis.empty:
-        df_directo = df_vis.copy()
-        df_proxy   = pd.DataFrame()
+    elif not df_vis.empty and "activo_referencia" in df_vis.columns:
+        mask_dir   = df_vis["activo_referencia"].str.lower().isin(ACTIVOS_DIRECTO)
+        df_directo = df_vis[mask_dir].copy()
+        df_proxy   = df_vis[~mask_dir].copy()
+    elif not df_vis.empty and "relacion" in df_vis.columns:
+        mask_dir   = df_vis["relacion"].str.lower().isin(ACTIVOS_DIRECTO)
+        df_directo = df_vis[mask_dir].copy()
+        df_proxy   = df_vis[~mask_dir].copy()
     else:
         df_directo = df_proxy = pd.DataFrame()
 
@@ -659,11 +666,20 @@ def render_mercados():
             vals   = df_g[col_val].tolist()
             zonas  = df_g[col_zona].tolist() if col_zona in df_g.columns else [None]*len(vals)
             cols_b = []
-            for z in zonas:
+            for i_z, z in enumerate(zonas):
                 zu = str(z).upper()
-                if zu in ("FAVORABLE", "ACOMPAÑANDO"):      cols_b.append("#27a05e")
-                elif zu in ("DESFAVORABLE", "DIVERGIENDO"): cols_b.append("#ef4444")
-                else:                                        cols_b.append("#f59e0b")
+                if zu in ("FAVORABLE", "ACOMPAÑANDO"):
+                    cols_b.append("#27a05e")
+                elif zu in ("DESFAVORABLE", "DIVERGIENDO"):
+                    cols_b.append("#ef4444")
+                elif zu in ("EQUILIBRADO", "NEUTRO"):
+                    cols_b.append("#f59e0b")
+                else:
+                    # Fallback: calcular desde el valor numérico
+                    v = vals[i_z]
+                    if v > 0.05:    cols_b.append("#27a05e")
+                    elif v < -0.02: cols_b.append("#ef4444")
+                    else:           cols_b.append("#f59e0b")
             n = len(prods)
             bars = ax.bar(range(n), vals, color=cols_b, alpha=0.88, width=0.55, zorder=3)
             ax.axhline(0, color="#0d2b1a", linewidth=1.0, alpha=0.3, zorder=2)
@@ -773,25 +789,36 @@ def render_mercados():
                 fecha_row_str = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
             except Exception:
                 fecha_row_str = str(row.get("fecha", "—"))
-            dif   = float(row.get("diferencial_arbitraje", 0) or 0)
-            local = float(row.get("precio_local_kg", 0) or 0)
-            intl  = float(row.get("precio_internacional_kg", 0) or 0)
-            zona    = str(row.get("zona_arbitraje", "") or "").upper()
-            tipo_ref= str(row.get("tipo_referencia", "") or "").upper()
-            rec     = str(row.get("recomendacion_arbitraje", "") or "")
-            dif_pct = float(row.get("diferencial_pct", 0) or 0) if row.get("diferencial_pct") is not None else None
-            sign    = "+" if dif > 0 else ""
+            dif      = float(row.get("diferencial_arbitraje", 0) or 0)
+            local    = float(row.get("precio_local_kg", 0) or 0)
+            intl_raw = row.get("precio_internacional_kg", None)
+            intl     = float(intl_raw) if intl_raw is not None else 0.0
+            zona     = str(row.get("zona_arbitraje", "") or "").upper()
+            tipo_ref = str(row.get("tipo_referencia", "") or "").upper()
+            rec      = str(row.get("recomendacion_arbitraje", "") or "")
+            dif_pct_raw = row.get("diferencial_pct", None)
+            dif_pct  = float(dif_pct_raw) if dif_pct_raw is not None else None
+            sign     = "+" if dif > 0 else ""
+
+            # Pre-calcular celdas condicionales
+            es_directo = (tipo_ref == "DIRECTO" and intl_raw is not None)
+            intl_str   = f"{intl:.2f} €/kg" if es_directo else "— (proxy)"
+            badge_str  = f"{sign}{dif:.2f} €/kg" if es_directo else zona.title()
+            pct_span   = f'<span style="font-size:0.72rem;color:{{}};font-weight:600;">{sign}{dif_pct:.1f}%</span>' if (es_directo and dif_pct is not None) else ""
 
             # Color y flecha según zona
             if zona in ("FAVORABLE", "ACOMPAÑANDO"):
                 b_bg  = "#dcfce7"; b_col = "#15803d"
-                tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,13 8,7 13,10 20,3" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,3 20,3 20,8" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
+                tend_svg = '<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,13 8,7 13,10 20,3" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,3 20,3 20,8" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
             elif zona in ("DESFAVORABLE", "DIVERGIENDO"):
                 b_bg  = "#fee2e2"; b_col = "#b91c1c"
-                tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,3 8,9 13,6 20,13" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,13 20,13 20,8" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
+                tend_svg = '<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,3 8,9 13,6 20,13" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,13 20,13 20,8" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
             else:
                 b_bg  = "#fef3c7"; b_col = "#b45309"
-                tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
+                tend_svg = '<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+            pct_span_final = pct_span.format(b_col) if pct_span else ""
+
             st.markdown(f"""
             <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                         align-items:center;padding:14px 20px;background:white;
@@ -799,14 +826,10 @@ def render_mercados():
                 <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_row_str}</span>
                 <span style="font-weight:600;font-size:0.9rem;color:#0d2b1a;">{row.get('producto','—')}</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#1a5c38;">{local:.2f} €/kg</span>
-                <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">
-                    {f"{intl:.2f} €/kg" if tipo_ref == "DIRECTO" and intl else "— (proxy)"}
-                </span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">{intl_str}</span>
                 <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                    <span style="background:{b_bg};color:{b_col};font-weight:700;font-size:0.82rem;padding:4px 12px;border-radius:20px;font-family:'DM Mono',monospace;">
-                        {f"{sign}{dif:.2f} €/kg" if tipo_ref == "DIRECTO" and intl else zona.title()}
-                    </span>
-                    {f'<span style="font-size:0.72rem;color:{b_col};font-weight:600;">{sign}{dif_pct:.1f}%</span>' if tipo_ref == "DIRECTO" and dif_pct is not None else ""}
+                    <span style="background:{b_bg};color:{b_col};font-weight:700;font-size:0.82rem;padding:4px 12px;border-radius:20px;font-family:'DM Mono',monospace;">{badge_str}</span>
+                    {pct_span_final}
                 </span>
                 <span title="{rec}">{tend_svg}</span>
             </div>
