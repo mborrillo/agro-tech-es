@@ -6,9 +6,9 @@
 
 ## Qué es AgroTech
 
-AgroTech es una plataforma digital de monitorización y análisis para el sector agrícola de España, y Extremadura en particular. En una sola pantalla, el productor ve el estado de sus parcelas, el precio al que cotiza su cosecha en los mercados globales, cuánto cuesta regar en este momento y si hay riesgo climático en las próximas horas.
+AgroTech es una plataforma digital de monitorización y análisis para el sector agrícola de España, y Extremadura en particular. En una sola pantalla, el productor ve el estado de sus parcelas segun la comarca - zona, el precio al que cotiza su cosecha en los mercados globales, al momento de regar saber cuanto es el costo, si hay riesgo o existen alertas climaticas en las próximas horas, entre otros.
 
-No es una app de previsión del tiempo. No es una hoja de cálculo de precios. Es una herramienta inteligente que se conecta a datos reales y que se actualiza automáticamente cada día.
+No es una app de previsión del tiempo. Tampoco es una hoja de cálculo de precios. Es una herramienta inteligente que se conecta a datos reales y que se actualiza automáticamente cada día.
 
 **Disponible en:** [agro-tech.streamlit.app](https://agro-tech.streamlit.app)
 
@@ -16,9 +16,9 @@ No es una app de previsión del tiempo. No es una hoja de cálculo de precios. E
 
 ## El problema que resuelve
 
-Un agricultor de Badajoz sabe lo que vale su aceituna en la lonja local. Lo que no sabe — porque nunca tuvo acceso fácil a esa información — es si ese precio está por encima o por debajo de lo que marca el mercado internacional de referencia en ese mismo momento. Tampoco sabe si el precio de la luz esta tarde hace rentable encender el sistema de riego, o si es mejor esperar a la madrugada.
+Un agricultor de Badajoz sabe lo que vale su produccion en la lonja local. Lo que no sabe — porque nunca tuvo acceso ágil a la información — es si ese precio está por encima o por debajo de lo que marca el mercado internacional de referencia en ese mismo momento. Tampoco sabe si el precio de la luz esta tarde hace rentable encender el sistema de riego, o si es mejor esperar a la madrugada.
 
-Esa brecha de información tiene un coste real: en márgenes de negociación perdidos, en agua y energía gastadas en el momento equivocado, en cosechas afectadas por heladas que los datos ya anticipaban.
+Esa ausencia de información, tiene un costo: márgenes de negociación perdidos, agua y energía gastadas en un momento no rentable, cosechas afectadas por heladas que los datos ya anticipaban, etc.
 
 **AgroTech cierra esa brecha.**
 
@@ -40,7 +40,7 @@ El sistema obtiene el precio PVPC de la electricidad (REE) y calcula diariamente
 - **Histórico de precios:** evolución diaria de los últimos 90 días con gráfico y tabla exportable a Excel, filtrable por período, tramo y estado de costo.
 
 **🗺️ Mapa de operaciones**
-Vista geográfica de todas las estaciones activas, con semáforo de estado (Óptimo / Precaución / Crítico) según las condiciones actuales de tratamiento y riego. Útil para cooperativas que gestionan múltiples explotaciones.
+Vista geográfica de todas las estaciones activas, con semáforo de estado (Óptimo / Precaución / Crítico) según las condiciones actuales de tratamiento y riego. Útil para cooperativas que gestionan múltiples explotaciones en distintas localidades, e inclusive poder consultar dicha información por Comarcas.
 
 **📈 Evolución de productos internacionales**
 Histórico de precios por categoría (cereales, aceites, ganadería…) con tendencias, variaciones y exportación de datos a Excel.
@@ -53,7 +53,7 @@ Histórico de precios por categoría (cereales, aceites, ganadería…) con tend
 Tienes acceso a la misma información que antes solo llegaba a grandes explotaciones o intermediarios. Sabes cuándo regar, cuándo tratar, si el precio que te ofrecen es justo y si el tiempo va a acompañar esta semana.
 
 ### 🏛️ Cooperativas y agrupaciones
-Visión consolidada de todos los sectores: qué está al alza, qué está cayendo, dónde están las oportunidades de comercialización. Datos para negociar mejor y tomar decisiones de compra y venta con fundamento.
+Visión consolidada de todos los sectores: qué está al alza, qué está cayendo, dónde están las oportunidades de comercialización. Datos para negociar mejor y tomar decisiones de compra y venta con mayor información y mejor fundamento.
 
 ### 🏢 Administración pública e instituciones
 Datos reales y actualizados sobre la salud del sector agrario regional. Útil para diseñar políticas de apoyo basadas en evidencia, no en estimaciones. Identificación inmediata de qué sectores necesitan intervención.
@@ -67,7 +67,7 @@ Histórico fechado de eventos climáticos extremos por zona geográfica. Herrami
 
 La digitalización del campo ya no es una opción futura: es una ventaja competitiva presente. Las explotaciones que toman decisiones con datos tienen menores costes operativos, mejores márgenes y mayor capacidad de adaptación ante un clima cada vez más impredecible.
 
-Extremadura tiene una producción agraria de alto valor — aceite de oliva, corcho, pimentón, ganadería extensiva — pero históricamente ha competido con información limitada. Esta herramienta cambia eso, ya que fue construida específicamente para esta región (y otras con necesidades similares),para potenciar sus cultivos y sus mercados agricolas.
+Extremadura tiene una producción agraria de alto valor — aceite de oliva, corcho, pimentón, ganadería extensiva — pero históricamente ha competido con información limitada. Esta herramienta fue pensada, construida y desarrollada específicamente para potenciar sus cultivos y sus mercados agricolas.
 
 ## Definicion de Umbrales
 Para obtener mas detalle de la definición y configuración de los umbrales, ver: https://github.com/mborrillo/agro-tech-es/blob/main/Interpretaci%C3%B3n%20de%20Umbrales%20AgroTech.md
