@@ -441,10 +441,79 @@ def render_mapa():
 
     if not df_filtered.empty:
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        section_header("📋", "Estaciones filtradas", f"{len(df_filtered)} estaciones")
-        cols_show = [c for c in ["estacion", "temp_actual", "humedad", "viento_vel", "precipitacion",
+        cols_show = [c for c in ["estacion", "comarca", "temp_actual", "humedad", "viento_vel", "precipitacion",
                                   "recomendacion_tratamiento", "recomendacion_riego", "luz_estado"] if c in df_filtered.columns]
-        st.dataframe(df_filtered[cols_show].reset_index(drop=True), use_container_width=True, height=260)
+        df_tabla_mapa = df_filtered[cols_show].sort_values("estacion").reset_index(drop=True)
+
+        hdr_mapa = st.columns([0.05, 0.78, 0.17])
+        with hdr_mapa[0]:
+            st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:2px;">📋</div>', unsafe_allow_html=True)
+        with hdr_mapa[1]:
+            st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Estaciones filtradas</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">{len(df_tabla_mapa)} estaciones seleccionadas</p></div>', unsafe_allow_html=True)
+        with hdr_mapa[2]:
+            import io
+            output_mapa = io.BytesIO()
+            col_labels_mapa = {"estacion": "Estación", "comarca": "Comarca", "temp_actual": "Temp. Actual (°C)",
+                               "humedad": "Humedad (%)", "viento_vel": "Viento (km/h)", "precipitacion": "Precipitación (mm)",
+                               "recomendacion_tratamiento": "Rec. Tratamiento", "recomendacion_riego": "Rec. Riego", "luz_estado": "Estado Luz"}
+            df_export_mapa = df_tabla_mapa.rename(columns=col_labels_mapa)
+            with pd.ExcelWriter(output_mapa, engine="openpyxl") as writer:
+                df_export_mapa.to_excel(writer, index=False, sheet_name="Estaciones")
+            st.download_button(
+                label="📥 Excel",
+                data=output_mapa.getvalue(),
+                file_name=f"estaciones_filtradas_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="excel_mapa"
+            )
+
+        st.markdown("<div style='border-bottom:2px solid #d1ead9;margin-bottom:12px;'></div>", unsafe_allow_html=True)
+
+        col_labels_h = {"estacion": "Estación", "comarca": "Comarca", "temp_actual": "Temp (°C)",
+                        "humedad": "Humedad", "viento_vel": "Viento", "precipitacion": "Lluvia",
+                        "recomendacion_tratamiento": "Tratamiento", "recomendacion_riego": "Riego", "luz_estado": "Luz"}
+        col_widths_mapa = "1.5fr 1.2fr " + " ".join(["1fr"] * (len(cols_show) - 2))
+        header_mapa_html = "".join([f'<span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">{col_labels_h.get(c, c)}</span>' for c in cols_show])
+        st.markdown(f"""
+        <div style="display:grid;grid-template-columns:{col_widths_mapa};gap:8px;padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;border:1px solid var(--border);border-bottom:2px solid var(--border);margin-bottom:2px;">
+            {header_mapa_html}
+        </div>
+        """, unsafe_allow_html=True)
+
+        for _, row in df_tabla_mapa.iterrows():
+            luz = str(row.get("luz_estado", "") or "").upper()
+            trat = str(row.get("recomendacion_tratamiento", "") or "").upper()
+            luz_bg  = "#fee2e2" if luz == "CARA" else "#dcfce7" if luz == "BARATA" else "#fef3c7"
+            luz_col = "#b91c1c" if luz == "CARA" else "#15803d" if luz == "BARATA" else "#b45309"
+            trat_bg  = "#dcfce7" if "OPTIMO" in trat else "#fee2e2" if "NO TRATAR" in trat else "#fef3c7"
+            trat_col = "#15803d" if "OPTIMO" in trat else "#b91c1c" if "NO TRATAR" in trat else "#b45309"
+            riego = str(row.get("recomendacion_riego", "") or "")
+            riego_col = "#b91c1c" if "SUSPENDER" in riego.upper() or "POSPONER" in riego.upper() else "#15803d" if "RECOMENDADO" in riego.upper() else "#475569"
+
+            cells_mapa = []
+            for c in cols_show:
+                if c == "estacion":
+                    cells_mapa.append(f'<span style="font-weight:600;font-size:0.88rem;color:#0d2b1a;">{row.get("estacion","—")}</span>')
+                elif c == "comarca":
+                    cells_mapa.append(f'<span style="font-size:0.82rem;color:#475569;font-weight:500;">{row.get("comarca","—")}</span>')
+                elif c in ["temp_actual", "humedad", "viento_vel", "precipitacion"]:
+                    val = row.get(c, "—")
+                    val_str = f"{float(val):.1f}" if val not in [None, "", "—"] else "—"
+                    cells_mapa.append(f'<span style="font-family:DM Mono,monospace;font-size:0.85rem;color:#1a5c38;">{val_str}</span>')
+                elif c == "recomendacion_tratamiento":
+                    cells_mapa.append(f'<span style="font-size:0.78rem;font-weight:700;background:{trat_bg};color:{trat_col};padding:3px 8px;border-radius:20px;">{trat}</span>')
+                elif c == "recomendacion_riego":
+                    cells_mapa.append(f'<span style="font-size:0.78rem;font-weight:600;color:{riego_col};">{riego}</span>')
+                elif c == "luz_estado":
+                    cells_mapa.append(f'<span style="font-size:0.78rem;font-weight:700;background:{luz_bg};color:{luz_col};padding:3px 8px;border-radius:20px;">{luz}</span>')
+            cells_mapa_html = "".join([f"<span>{cell}</span>" for cell in cells_mapa])
+            st.markdown(f"""
+            <div style="display:grid;grid-template-columns:{col_widths_mapa};gap:8px;align-items:center;padding:12px 20px;background:white;border:1px solid var(--border);border-top:none;transition:background 0.15s;">
+                {cells_mapa_html}
+            </div>
+            """, unsafe_allow_html=True)
+        st.caption(f"{len(df_tabla_mapa)} estaciones mostradas")
 
 def render_mercados():
     page_hero("📊 Análisis de mercado", "Monitor de Mercados", "Comparativa de precios locales vs internacionales")
@@ -587,13 +656,38 @@ def render_mercados():
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     fecha_str_header = ultimo.strftime('%Y-%m-%d') if ultimo is not None else '—'
-    section_header("🗓️", "Precios del Día", f"Última actualización: {fecha_str_header}")
+
+    hdr_precios = st.columns([0.05, 0.78, 0.17])
+    with hdr_precios[0]:
+        st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:2px;">🗓️</div>', unsafe_allow_html=True)
+    with hdr_precios[1]:
+        st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Precios del Día</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_str_header}</p></div>', unsafe_allow_html=True)
+    with hdr_precios[2]:
+        if not df_vis.empty:
+            import io
+            output_precios = io.BytesIO()
+            cols_export_precios = ["fecha", "producto", "precio_local_kg", "precio_internacional_kg", "diferencial_arbitraje"]
+            cols_export_precios = [c for c in cols_export_precios if c in df_vis.columns]
+            df_export_precios = df_vis[cols_export_precios].sort_values("fecha", ascending=False).reset_index(drop=True) if "fecha" in df_vis.columns else df_vis[cols_export_precios].reset_index(drop=True)
+            with pd.ExcelWriter(output_precios, engine="openpyxl") as writer:
+                df_export_precios.to_excel(writer, index=False, sheet_name="Precios del Día")
+            st.download_button(
+                label="📥 Excel",
+                data=output_precios.getvalue(),
+                file_name=f"precios_dia_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="excel_precios_dia"
+            )
+
+    st.markdown("<div style='border-bottom:2px solid #d1ead9;margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
     if not df_vis.empty:
         st.markdown("""
-        <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+        <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                     padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;
                     border:1px solid var(--border);border-bottom:2px solid var(--border);margin-bottom:2px;">
+            <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Fecha</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Producto</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Local (€/kg)</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Internacional (€/kg)</span>
@@ -602,7 +696,12 @@ def render_mercados():
         </div>
         """, unsafe_allow_html=True)
 
-        for _, row in df_vis.iterrows():
+        df_vis_sorted = df_vis.sort_values("fecha", ascending=False).reset_index(drop=True) if "fecha" in df_vis.columns else df_vis
+        for _, row in df_vis_sorted.iterrows():
+            try:
+                fecha_row_str = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
+            except Exception:
+                fecha_row_str = str(row.get("fecha", "—"))
             dif   = float(row.get("diferencial_arbitraje", 0) or 0)
             local = float(row.get("precio_local_kg", 0) or 0)
             intl  = float(row.get("precio_internacional_kg", 0) or 0)
@@ -616,9 +715,10 @@ def render_mercados():
             else:
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             st.markdown(f"""
-            <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
+            <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                         align-items:center;padding:14px 20px;background:white;
                         border:1px solid var(--border);border-top:none;margin-bottom:0;">
+                <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_row_str}</span>
                 <span style="font-weight:600;font-size:0.9rem;color:#0d2b1a;">{row.get('producto','—')}</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#1a5c38;">{local:.2f} €/kg</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">{intl:.2f} €/kg</span>
