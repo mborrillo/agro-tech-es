@@ -1,4 +1,4 @@
-# 🌿 AgroTech ES — Inteligencia en Mercados Agrarios
+# 🌿 AgroTech — Inteligencia en Mercados Agrarios
 
 > Plataforma de inteligencia de datos para el sector agropecuario de Extremadura. Conecta el clima local, los precios de la lonja, los mercados internacionales y el coste energético en un único panel de decisión.
 
