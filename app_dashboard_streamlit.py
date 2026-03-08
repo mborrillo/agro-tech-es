@@ -1,5 +1,5 @@
 """
-AgroTech — Dashboard Principal
+AgroTech Extremadura — Dashboard Principal
 Conectado a Supabase con datos reales.
 Credenciales via st.secrets (nunca hardcodeadas).
 """
@@ -11,7 +11,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 st.set_page_config(
-    page_title="AgroTech",
+    page_title="AgroTech Extremadura",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -187,8 +187,8 @@ def render_login():
         st.markdown("""
         <div class="login-wrap">
             <div style="font-size:3rem">🌿</div>
-            <div style="font-size:1.6rem;font-weight:800;color:#0d2b1a;">AgroTech</div>
-            <div style="color:#7aa98e;font-size:0.9rem;margin:8px 0 32px;">Inteligencia en Mercados Agrarios</div>
+            <div style="font-size:1.6rem;font-weight:800;color:#0d2b1a;">AgroTech Extremadura</div>
+            <div style="color:#7aa98e;font-size:0.9rem;margin:8px 0 32px;">Monitor del Campo Extremeño</div>
         </div>
         """, unsafe_allow_html=True)
         with st.form("login_form"):
@@ -300,7 +300,7 @@ def render_dashboard():
     kpi_card(c3, "kpi-amber", "⚡", f"{kwh:.3f}€"   if kwh  is not None else "—", "Precio kWh", tramo)
     kpi_card(c4, "kpi-red" if n_alerta > 0 else "kpi-green", "⚠️", str(n_alerta), "Alertas clima", "Activas")
     if not df_salud.empty and "estado_mercado" in df_salud.columns:
-        al_alza = int(df_salud["estado_mercado"].str.contains("alza|sube|bueno", case=False, na=False).sum())
+        al_alza = int((df_salud["estado_mercado"].str.upper().str.strip() == "ÓPTIMO").sum())
         kpi_card(c5, "kpi-earth", "🌾", f"{al_alza}/{len(df_salud)}", "Sectores al alza", "Estado mercado")
     else:
         kpi_card(c5, "kpi-earth", "🌾", "—", "Sectores", "Sin datos")
@@ -311,12 +311,12 @@ def render_dashboard():
         num_cols = min(len(df_salud), 5)
         sector_cols = st.columns(num_cols)
         for i, (_, row) in enumerate(df_salud.iterrows()):
-            estado = str(row.get("estado_mercado", "")).lower()
-            if any(x in estado for x in ["alza", "bueno", "sube"]):
+            estado = str(row.get("estado_mercado", "")).upper().strip()
+            if estado == "ÓPTIMO":
                 b_cls, dot, border_color, bg_color = "badge-green", "🟢", "#27a05e", "#f0fdf4"
-            elif any(x in estado for x in ["baja", "baj", "mal"]):
+            elif estado == "ALERTA":
                 b_cls, dot, border_color, bg_color = "badge-red", "🔴", "#ef4444", "#fff5f5"
-            else:
+            else:  # ATENCIÓN u otro
                 b_cls, dot, border_color, bg_color = "badge-amber", "🟡", "#f59e0b", "#fffbeb"
             var  = float(row.get("variacion_media_sector", 0) or 0)
             sign = "+" if var > 0 else ""
@@ -579,7 +579,12 @@ def render_mercados():
     if not df_c.empty:
         df_ult_c_kpi = df_c.sort_values("fecha").groupby("producto").last().reset_index()
         n_emparejados = len(df_ult_c_kpi)
-        if "diferencial_arbitraje" in df_ult_c_kpi.columns:
+        if "zona_arbitraje" in df_ult_c_kpi.columns:
+            zonas_up = {"FAVORABLE", "ACOMPAÑANDO"}
+            zonas_dn = {"DESFAVORABLE", "DIVERGIENDO"}
+            al_alza_merc   = int(df_ult_c_kpi["zona_arbitraje"].str.upper().isin(zonas_up).sum())
+            a_la_baja_merc = int(df_ult_c_kpi["zona_arbitraje"].str.upper().isin(zonas_dn).sum())
+        elif "diferencial_arbitraje" in df_ult_c_kpi.columns:
             al_alza_merc   = int((df_ult_c_kpi["diferencial_arbitraje"].fillna(0) > 0).sum())
             a_la_baja_merc = int((df_ult_c_kpi["diferencial_arbitraje"].fillna(0) < 0).sum())
 
@@ -616,58 +621,108 @@ def render_mercados():
             df_vis = df_vis[df_vis["producto"].str.contains(buscar_prod, case=False, na=False)]
 
     # ── Gráfico diferencial de arbitraje: una barra vertical por producto ──
-    section_header("📊", "Diferencial de Arbitraje (€/kg)", "Verde: precio local superior · Rojo: precio local inferior al internacional")
+    section_header("📊", "Diferencial de Arbitraje (€/kg)", "Verde: precio local superior al internacional · Rojo: precio local inferior al internacional")
 
-    if not df_vis.empty and "diferencial_arbitraje" in df_vis.columns:
-        try:
-            import matplotlib
-            matplotlib.use("Agg")
-            import matplotlib.pyplot as plt
-            import matplotlib.patches as mpatches
+    # Split DIRECTO / PROXY según tipo_referencia
+    if not df_vis.empty and "tipo_referencia" in df_vis.columns:
+        df_directo = df_vis[df_vis["tipo_referencia"].str.upper() == "DIRECTO"].copy()
+        df_proxy   = df_vis[df_vis["tipo_referencia"].str.upper() == "PROXY"].copy()
+    elif not df_vis.empty:
+        df_directo = df_vis.copy()
+        df_proxy   = pd.DataFrame()
+    else:
+        df_directo = df_proxy = pd.DataFrame()
 
-            df_chart = df_vis.sort_values("producto").copy()
-            df_chart["diferencial_arbitraje"] = pd.to_numeric(df_chart["diferencial_arbitraje"], errors="coerce").fillna(0)
-            productos = df_chart["producto"].tolist()
-            valores   = df_chart["diferencial_arbitraje"].tolist()
-            colores   = ["#27a05e" if v >= 0 else "#ef4444" for v in valores]
-            n = len(productos)
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
 
-            fig, ax = plt.subplots(figsize=(max(8, n * 1.1), 4.5))
-            fig.patch.set_facecolor("#f0faf4")
-            ax.set_facecolor("#f0faf4")
+        fig, (ax_d, ax_p) = plt.subplots(1, 2, figsize=(13, 4.0))
+        fig.patch.set_facecolor("#f0faf4")
+        fig.subplots_adjust(wspace=0.40)
 
-            bars = ax.bar(range(n), valores, color=colores, alpha=0.88, width=0.6, zorder=3)
-            ax.axhline(0, color="#0d2b1a", linewidth=1.2, alpha=0.3, zorder=2)
-
-            for bar, val in zip(bars, valores):
+        def _render_bars_merc(ax, df_g, col_val, col_zona, ylabel, fmt_str, empty_msg):
+            """Renderiza un gráfico de barras de diferencial con el estilo estándar del dashboard."""
+            if df_g.empty or col_val not in df_g.columns:
+                ax.set_facecolor("#f0faf4")
+                ax.text(0.5, 0.5, empty_msg, ha="center", va="center",
+                        fontsize=9, color="#7aa98e", transform=ax.transAxes,
+                        multialignment="center")
+                ax.set_xticks([]); ax.set_yticks([])
+                for sp in ax.spines.values(): sp.set_visible(False)
+                return
+            df_g = df_g.copy()
+            df_g[col_val] = pd.to_numeric(df_g[col_val], errors="coerce").fillna(0)
+            prods  = df_g["producto"].tolist()
+            vals   = df_g[col_val].tolist()
+            zonas  = df_g[col_zona].tolist() if col_zona in df_g.columns else [None]*len(vals)
+            cols_b = []
+            for z in zonas:
+                zu = str(z).upper()
+                if zu in ("FAVORABLE", "ACOMPAÑANDO"):      cols_b.append("#27a05e")
+                elif zu in ("DESFAVORABLE", "DIVERGIENDO"): cols_b.append("#ef4444")
+                else:                                        cols_b.append("#f59e0b")
+            n = len(prods)
+            bars = ax.bar(range(n), vals, color=cols_b, alpha=0.88, width=0.55, zorder=3)
+            ax.axhline(0, color="#0d2b1a", linewidth=1.0, alpha=0.3, zorder=2)
+            for bar, val in zip(bars, vals):
                 va     = "bottom" if val >= 0 else "top"
-                offset = max(abs(val) * 0.03, 0.05) * (1 if val >= 0 else -1)
+                offset = max(abs(val) * 0.03, 0.001) * (1 if val >= 0 else -1)
                 ax.text(bar.get_x() + bar.get_width() / 2, val + offset,
-                        f"{val:+.2f}", ha="center", va=va,
-                        fontsize=8.5, fontweight="600", color="#0d2b1a")
-
+                        fmt_str.format(val), ha="center", va=va,
+                        fontsize=7.5, fontweight="600", color="#0d2b1a")
             ax.set_xticks(range(n))
-            ax.set_xticklabels(productos, rotation=30, ha="right", fontsize=10, color="#0d2b1a")
-            ax.set_ylabel("€/kg", fontsize=10, color="#0d2b1a")
-            ax.tick_params(axis="y", colors="#0d2b1a", labelsize=9)
-            ax.yaxis.grid(True, color="#d1ead9", linewidth=0.8, zorder=0)
+            ax.set_xticklabels(prods, rotation=25, ha="right", fontsize=8.5, color="#0d2b1a")
+            ax.set_ylabel(ylabel, fontsize=9, color="#0d2b1a")
+            ax.tick_params(axis="y", colors="#0d2b1a", labelsize=8)
+            ax.yaxis.grid(True, color="#d1ead9", linewidth=0.7, zorder=0)
             ax.set_axisbelow(True)
-            for spine in ["top", "right"]:
-                ax.spines[spine].set_visible(False)
-            for spine in ["left", "bottom"]:
-                ax.spines[spine].set_color("#d1ead9")
+            ax.set_facecolor("#f0faf4")
+            for sp in ["top", "right"]:   ax.spines[sp].set_visible(False)
+            for sp in ["left", "bottom"]: ax.spines[sp].set_color("#d1ead9")
 
-            patch_pos = mpatches.Patch(color="#27a05e", alpha=0.88, label="Precio local superior")
-            patch_neg = mpatches.Patch(color="#ef4444", alpha=0.88, label="Precio local inferior")
-            ax.legend(handles=[patch_pos, patch_neg], loc="upper right",
-                      fontsize=9, framealpha=0.85, edgecolor="#d1ead9")
-            plt.tight_layout()
-            st.pyplot(fig, use_container_width=True)
-            plt.close(fig)
-        except Exception as e_chart:
-            st.warning(f"⚠️ Error al renderizar gráfico de diferencial: {e_chart}")
-    elif df_vis.empty:
-        st.info("No hay datos que coincidan con los filtros aplicados")
+        # ── Izquierdo: DIRECTO — diferencial €/kg vs Chicago ──
+        ax_d.set_title("Mercado Directo  (€/kg vs Chicago)", fontsize=9,
+                       fontweight="700", color="#0d2b1a", pad=8, loc="left")
+        _render_bars_merc(ax_d, df_directo, "diferencial_arbitraje", "zona_arbitraje",
+                          "€/kg", "{:+.3f}", "Sin productos directos\nen la selección actual")
+        if not df_directo.empty:
+            ax_d.legend(handles=[
+                mpatches.Patch(color="#27a05e", alpha=0.88, label="Favorable  (>+5%)"),
+                mpatches.Patch(color="#f59e0b", alpha=0.88, label="Equilibrado (±2–5%)"),
+                mpatches.Patch(color="#ef4444", alpha=0.88, label="Desfavorable (<−2%)"),
+            ], fontsize=7.5, framealpha=0.85, edgecolor="#d1ead9", loc="upper right")
+
+        # ── Derecho: PROXY — variación % local vs referencia global ──
+        ax_p.set_title("Mercado Proxy  (var. % local vs referencia global)", fontsize=9,
+                       fontweight="700", color="#0d2b1a", pad=8, loc="left")
+        if not df_proxy.empty:
+            df_pp = df_proxy.copy()
+            df_pp["var_loc_plot"] = pd.to_numeric(df_pp.get("variacion_local"), errors="coerce").fillna(0)
+        else:
+            df_pp = pd.DataFrame()
+        _render_bars_merc(ax_p, df_pp, "var_loc_plot", "zona_arbitraje",
+                          "Var. %", "{:+.1f}%", "Sin productos proxy\nen la selección actual")
+        if not df_pp.empty:
+            ax_p.legend(handles=[
+                mpatches.Patch(color="#27a05e", alpha=0.88, label="Acompañando"),
+                mpatches.Patch(color="#f59e0b", alpha=0.88, label="Neutro"),
+                mpatches.Patch(color="#ef4444", alpha=0.88, label="Divergiendo"),
+            ], fontsize=7.5, framealpha=0.85, edgecolor="#d1ead9", loc="upper right")
+
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+    except Exception as e_chart:
+        st.warning(f"⚠️ Error al renderizar gráficos: {e_chart}")
+
+    if df_vis.empty:
+        st.info("No hay datos que coincidan con los filtros aplicados.")
+
+
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
@@ -682,7 +737,7 @@ def render_mercados():
         if not df_vis.empty:
             import io
             output_precios = io.BytesIO()
-            cols_export_precios = ["fecha", "producto", "precio_local_kg", "precio_internacional_kg", "diferencial_arbitraje"]
+            cols_export_precios = ["fecha", "sector", "producto", "tipo_referencia", "activo_referencia", "precio_local_kg", "precio_internacional_kg", "diferencial_arbitraje", "diferencial_pct", "variacion_local", "variacion_internacional", "zona_arbitraje", "recomendacion_arbitraje"]
             cols_export_precios = [c for c in cols_export_precios if c in df_vis.columns]
             df_export_precios = df_vis[cols_export_precios].sort_values("fecha", ascending=False).reset_index(drop=True) if "fecha" in df_vis.columns else df_vis[cols_export_precios].reset_index(drop=True)
             with pd.ExcelWriter(output_precios, engine="openpyxl") as writer:
@@ -708,7 +763,7 @@ def render_mercados():
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Local (€/kg)</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Internacional (€/kg)</span>
             <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Diferencial</span>
-            <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Tendencia</span>
+            <span style="font-size:0.75rem;font-weight:700;color:#0d2b1a;text-transform:uppercase;letter-spacing:0.06em;">Zona</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -721,14 +776,21 @@ def render_mercados():
             dif   = float(row.get("diferencial_arbitraje", 0) or 0)
             local = float(row.get("precio_local_kg", 0) or 0)
             intl  = float(row.get("precio_internacional_kg", 0) or 0)
-            sign  = "+" if dif > 0 else ""
-            b_bg  = "#dcfce7" if dif > 0 else "#fee2e2"
-            b_col = "#15803d" if dif > 0 else "#b91c1c"
-            if dif > 0:
+            zona    = str(row.get("zona_arbitraje", "") or "").upper()
+            tipo_ref= str(row.get("tipo_referencia", "") or "").upper()
+            rec     = str(row.get("recomendacion_arbitraje", "") or "")
+            dif_pct = float(row.get("diferencial_pct", 0) or 0) if row.get("diferencial_pct") is not None else None
+            sign    = "+" if dif > 0 else ""
+
+            # Color y flecha según zona
+            if zona in ("FAVORABLE", "ACOMPAÑANDO"):
+                b_bg  = "#dcfce7"; b_col = "#15803d"
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,13 8,7 13,10 20,3" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,3 20,3 20,8" fill="none" stroke="#27a05e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
-            elif dif < 0:
+            elif zona in ("DESFAVORABLE", "DIVERGIENDO"):
+                b_bg  = "#fee2e2"; b_col = "#b91c1c"
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,3 8,9 13,6 20,13" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="15,13 20,13 20,8" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             else:
+                b_bg  = "#fef3c7"; b_col = "#b45309"
                 tend_svg = """<svg width="22" height="16" viewBox="0 0 22 16"><polyline points="2,8 20,8" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
             st.markdown(f"""
             <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
@@ -737,11 +799,16 @@ def render_mercados():
                 <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#7aa98e;">{fecha_row_str}</span>
                 <span style="font-weight:600;font-size:0.9rem;color:#0d2b1a;">{row.get('producto','—')}</span>
                 <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#1a5c38;">{local:.2f} €/kg</span>
-                <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">{intl:.2f} €/kg</span>
-                <span style="display:inline-flex;align-items:center;">
-                    <span style="background:{b_bg};color:{b_col};font-weight:700;font-size:0.82rem;padding:4px 12px;border-radius:20px;font-family:'DM Mono',monospace;">{sign}{dif:.2f} €/kg</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.88rem;color:#475569;">
+                    {f"{intl:.2f} €/kg" if tipo_ref == "DIRECTO" and intl else "— (proxy)"}
                 </span>
-                <span>{tend_svg}</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <span style="background:{b_bg};color:{b_col};font-weight:700;font-size:0.82rem;padding:4px 12px;border-radius:20px;font-family:'DM Mono',monospace;">
+                        {f"{sign}{dif:.2f} €/kg" if tipo_ref == "DIRECTO" and intl else zona.title()}
+                    </span>
+                    {f'<span style="font-size:0.72rem;color:{b_col};font-weight:600;">{sign}{dif_pct:.1f}%</span>' if tipo_ref == "DIRECTO" and dif_pct is not None else ""}
+                </span>
+                <span title="{rec}">{tend_svg}</span>
             </div>
             """, unsafe_allow_html=True)
 
