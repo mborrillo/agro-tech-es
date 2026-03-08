@@ -369,27 +369,27 @@ def render_mapa():
         comarca_opts = ["Todas"]
         if "comarca" in df.columns:
             comarca_opts += sorted(df["comarca"].dropna().unique().tolist())
-        filtro_comarca = st.selectbox("Comarca", comarca_opts, key="mapa_comarca")
+        filtro_comarca = st.multiselect("Comarca", [o for o in comarca_opts if o != "Todas"], placeholder="Todas las comarcas...", key="mapa_comarca")
     with f2:
         tratamiento_opts = ["Todos"]
         if "recomendacion_tratamiento" in df.columns:
             tratamiento_opts += sorted(df["recomendacion_tratamiento"].dropna().unique().tolist())
-        filtro_trat = st.selectbox("Tratamiento", tratamiento_opts, key="mapa_tratamiento")
+        filtro_trat = st.multiselect("Tratamiento", [o for o in tratamiento_opts if o != "Todos"], placeholder="Todos...", key="mapa_tratamiento")
     with f3:
         riego_opts = ["Todos"]
         if "recomendacion_riego" in df.columns:
             riego_opts += sorted(df["recomendacion_riego"].dropna().unique().tolist())
-        filtro_riego = st.selectbox("Riego", riego_opts, key="mapa_riego")
+        filtro_riego = st.multiselect("Riego", [o for o in riego_opts if o != "Todos"], placeholder="Todos...", key="mapa_riego")
     with f4:
         buscar = st.text_input("🔍 Buscar estación", placeholder="Nombre de estación...", key="mapa_buscar")
 
     df_filtered = df.copy()
-    if filtro_comarca != "Todas" and "comarca" in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered["comarca"] == filtro_comarca]
-    if filtro_trat != "Todos" and "recomendacion_tratamiento" in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered["recomendacion_tratamiento"] == filtro_trat]
-    if filtro_riego != "Todos" and "recomendacion_riego" in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered["recomendacion_riego"] == filtro_riego]
+    if filtro_comarca and "comarca" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["comarca"].isin(filtro_comarca)]
+    if filtro_trat and "recomendacion_tratamiento" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["recomendacion_tratamiento"].isin(filtro_trat)]
+    if filtro_riego and "recomendacion_riego" in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered["recomendacion_riego"].isin(filtro_riego)]
     if buscar and "estacion" in df_filtered.columns:
         df_filtered = df_filtered[df_filtered["estacion"].str.contains(buscar, case=False, na=False)]
 
@@ -559,14 +559,14 @@ def render_mercados():
         if not df_c.empty and "fecha" in df_c.columns:
             fechas_unicas = sorted(df_c["fecha"].dropna().dt.normalize().unique(), reverse=True)
             fecha_opts += [pd.Timestamp(f).strftime("%d/%m/%Y") for f in fechas_unicas]
-        filtro_fecha = st.selectbox("Fecha", fecha_opts, key="merc_fecha")
+        filtro_fecha = st.multiselect("Fecha", [o for o in fecha_opts if o != "Todas"], placeholder="Todas las fechas...", key="merc_fecha")
 
     with f3:
         # Mercado Referencia
         relacion_opts = ["Todos"]
         if not df_c.empty and "relacion" in df_c.columns:
             relacion_opts += sorted(df_c["relacion"].dropna().unique().tolist())
-        filtro_relacion = st.selectbox("Mercado Referencia", relacion_opts, key="merc_relacion")
+        filtro_relacion = st.multiselect("Mercado Referencia", [o for o in relacion_opts if o != "Todos"], placeholder="Todos los mercados...", key="merc_relacion")
 
     with f4:
         buscar_prod = st.text_input("🔍 Buscar mercado", placeholder="Nombre del mercado o producto...", key="merc_buscar")
@@ -601,16 +601,16 @@ def render_mercados():
             mask = df_filt["fecha"].apply(lambda d: d.strftime("%Y-%m")).isin(filtro_periodo)
             df_filt = df_filt[mask]
         # Filtro Fecha exacta
-        if filtro_fecha != "Todas":
-            df_filt = df_filt[df_filt["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")) == filtro_fecha]
+        if filtro_fecha:
+            df_filt = df_filt[df_filt["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")).isin(filtro_fecha)]
         # Tomar último registro por producto dentro del periodo filtrado
         if not df_filt.empty:
             df_vis = df_filt.sort_values("fecha").groupby("producto").last().reset_index()
         else:
             df_vis = df_c.sort_values("fecha").groupby("producto").last().reset_index()
         # Filtro Mercado Referencia
-        if filtro_relacion != "Todos" and "relacion" in df_vis.columns:
-            df_vis = df_vis[df_vis["relacion"] == filtro_relacion]
+        if filtro_relacion and "relacion" in df_vis.columns:
+            df_vis = df_vis[df_vis["relacion"].isin(filtro_relacion)]
         # Filtro texto
         if buscar_prod:
             df_vis = df_vis[df_vis["producto"].str.contains(buscar_prod, case=False, na=False)]
@@ -780,17 +780,17 @@ def render_monitor_productos():
         if not df.empty and "fecha" in df.columns:
             fechas_unicas = sorted(df["fecha"].dropna().dt.normalize().unique(), reverse=True)
             fecha_dia_opts += [pd.Timestamp(f).strftime("%d/%m/%Y") for f in fechas_unicas]
-        filtro_fecha_dia = st.selectbox("Fecha", fecha_dia_opts, key="prod_fecha")
+        filtro_fecha_dia = st.multiselect("Fecha", [o for o in fecha_dia_opts if o != "Todas"], placeholder="Todas las fechas...", key="prod_fecha")
     with f3:
         cat_opts = ["Todas"]
         if not df.empty and "categoria" in df.columns:
             cat_opts += sorted(df["categoria"].dropna().unique().tolist())
-        filtro_cat = st.selectbox("Categoría", cat_opts, key="prod_categoria")
+        filtro_cat = st.multiselect("Categoría", [o for o in cat_opts if o != "Todas"], placeholder="Todas las categorías...", key="prod_categoria")
     with f4:
         tend_opts = ["Todas"]
         if not df.empty and "tendencia" in df.columns:
             tend_opts += sorted(df["tendencia"].dropna().unique().tolist())
-        filtro_tend = st.selectbox("Tendencia", tend_opts, key="prod_tendencia")
+        filtro_tend = st.multiselect("Tendencia", [o for o in tend_opts if o != "Todas"], placeholder="Todas...", key="prod_tendencia")
     with f5:
         buscar_prod = st.text_input("🔍 Buscar producto", placeholder="Nombre del producto...", key="prod_buscar")
 
@@ -817,12 +817,12 @@ def render_monitor_productos():
         mask = df_f["fecha"].apply(lambda d: d.strftime("%Y-%m")).isin(filtro_periodo)
         df_f = df_f[mask]
     # Filtro Fecha día exacto
-    if filtro_fecha_dia != "Todas" and "fecha" in df_f.columns:
-        df_f = df_f[df_f["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")) == filtro_fecha_dia]
-    if filtro_cat != "Todas" and "categoria" in df_f.columns:
-        df_f = df_f[df_f["categoria"] == filtro_cat]
-    if filtro_tend != "Todas" and "tendencia" in df_f.columns:
-        df_f = df_f[df_f["tendencia"] == filtro_tend]
+    if filtro_fecha_dia and "fecha" in df_f.columns:
+        df_f = df_f[df_f["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")).isin(filtro_fecha_dia)]
+    if filtro_cat and "categoria" in df_f.columns:
+        df_f = df_f[df_f["categoria"].isin(filtro_cat)]
+    if filtro_tend and "tendencia" in df_f.columns:
+        df_f = df_f[df_f["tendencia"].isin(filtro_tend)]
     if buscar_prod and "producto" in df_f.columns:
         df_f = df_f[df_f["producto"].str.contains(buscar_prod, case=False, na=False)]
 
@@ -989,20 +989,20 @@ def render_energia():
         filtro_periodo = st.multiselect("Año-Mes", anio_mes_opts, placeholder="Todos los períodos...", key="en_periodo")
     with f2:
         tramo_opts = ["Todos"] + sorted(df["tramo_mayoria"].dropna().unique().tolist())
-        filtro_tramo = st.selectbox("Tramo predominante", tramo_opts, key="en_tramo")
+        filtro_tramo = st.multiselect("Tramo predominante", [o for o in tramo_opts if o != "Todos"], placeholder="Todos los tramos...", key="en_tramo")
     with f3:
         estado_opts = ["Todos"] + sorted(df["estado_costo"].dropna().unique().tolist())
-        filtro_estado = st.selectbox("Estado costo", estado_opts, key="en_estado")
+        filtro_estado = st.multiselect("Estado costo", [o for o in estado_opts if o != "Todos"], placeholder="Todos los estados...", key="en_estado")
     with f4:
         buscar_fecha = st.text_input("🔍 Buscar fecha", placeholder="ej: 2026-03...", key="en_buscar")
 
     df_f = df.copy()
     if filtro_periodo:
         df_f = df_f[df_f["fecha"].apply(lambda d: d.strftime("%Y-%m")).isin(filtro_periodo)]
-    if filtro_tramo != "Todos":
-        df_f = df_f[df_f["tramo_mayoria"] == filtro_tramo]
-    if filtro_estado != "Todos":
-        df_f = df_f[df_f["estado_costo"] == filtro_estado]
+    if filtro_tramo:
+        df_f = df_f[df_f["tramo_mayoria"].isin(filtro_tramo)]
+    if filtro_estado:
+        df_f = df_f[df_f["estado_costo"].isin(filtro_estado)]
     if buscar_fecha:
         df_f = df_f[df_f["fecha"].astype(str).str.contains(buscar_fecha, case=False, na=False)]
     df_f = df_f.sort_values("fecha", ascending=False).reset_index(drop=True)
