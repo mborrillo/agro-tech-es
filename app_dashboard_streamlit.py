@@ -1,5 +1,5 @@
 """
-AgroTech Extremadura — Dashboard Principal
+AgroTech — Dashboard Principal
 Conectado a Supabase con datos reales.
 Credenciales via st.secrets (nunca hardcodeadas).
 """
@@ -11,7 +11,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 st.set_page_config(
-    page_title="AgroTech Extremadura",
+    page_title="AgroTech",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -187,8 +187,8 @@ def render_login():
         st.markdown("""
         <div class="login-wrap">
             <div style="font-size:3rem">🌿</div>
-            <div style="font-size:1.6rem;font-weight:800;color:#0d2b1a;">AgroTech Extremadura</div>
-            <div style="color:#7aa98e;font-size:0.9rem;margin:8px 0 32px;">Monitor del Campo Extremeño</div>
+            <div style="font-size:1.6rem;font-weight:800;color:#0d2b1a;">AgroTech</div>
+            <div style="color:#7aa98e;font-size:0.9rem;margin:8px 0 32px;">Inteligencia en Mercados Agrarios</div>
         </div>
         """, unsafe_allow_html=True)
         with st.form("login_form"):
