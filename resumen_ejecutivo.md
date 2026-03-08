@@ -18,7 +18,7 @@ No es una app de previsión del tiempo. Tampoco es una hoja de cálculo de preci
 
 Un agricultor de Badajoz sabe lo que vale su produccion en la lonja local. Lo que no sabe — porque nunca tuvo acceso ágil a la información — es si ese precio está por encima o por debajo de lo que marca el mercado internacional de referencia en ese mismo momento. Tampoco sabe si el precio de la luz esta tarde hace rentable encender el sistema de riego, o si es mejor esperar a la madrugada.
 
-Esa ausencia de información, tiene un costo: márgenes de negociación perdidos, agua y energía gastadas en un momento no rentable, cosechas afectadas por heladas que los datos ya anticipaban, etc.
+Esa ausencia de información, tiene un costo: oportunidades de negociación perdidos, insumos como el agua y la energía malgastadas en un momento poco rentable, cosechas afectadas por heladas que los datos ya anticipaban, etc etc.
 
 **AgroTech cierra esa brecha.**
 
