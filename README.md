@@ -12,7 +12,7 @@ Los agricultores y cooperativas de Extremadura operan con información fragmenta
 
 **Tres preguntas que responde esta herramienta:**
 
-1. **¿Cuándo y dónde regar?** Cruzando clima real (AEMET) con el precio de la luz (PVPC), el sistema indica si conviene regar ahora o esperar a la franja más barata.
+1. **¿Cuándo y dónde regar?** Cruzando clima real (AEMET) con el precio de la luz (PVPC), el sistema indica si conviene regar ahora o esperar a la franja horaria más barata.
 2. **¿A qué precio vender?** Comparando el precio local (Lonja de Extremadura) con los futuros internacionales (Chicago), se detecta si el mercado local está infravalorado.
 3. **¿Hay riesgo climático?** Alertas automáticas por temperaturas extremas, heladas o condiciones adversas para tratamientos fitosanitarios.
 
