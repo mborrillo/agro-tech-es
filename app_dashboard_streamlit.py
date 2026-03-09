@@ -1201,7 +1201,7 @@ def render_energia():
     if hoy is not None:
         cc1, cc2 = st.columns([1, 1])
         with cc1:
-            potencia_kw = st.number_input("Potencia de la bomba (kW)", min_value=0.5, max_value=500.0, value=10.0, step=0.5, key="en_potencia")
+            potencia_kw = st.number_input("Potencia de la bomba (CV)", min_value=0.5, max_value=500.0, value=10.0, step=0.5, key="en_potencia")
             horas_riego = st.number_input("Horas de riego previstas", min_value=0.5, max_value=24.0, value=4.0, step=0.5, key="en_horas")
 
         p_min_c = float(hoy.get("precio_min", 0) or 0)
@@ -1218,22 +1218,22 @@ def render_energia():
         with cc2:
             st.markdown(f"""
             <div style="background:white;border:1px solid var(--border);border-radius:16px;padding:20px 24px;box-shadow:0 2px 12px rgba(13,43,26,0.07);">
-                <p style="font-size:0.75rem;font-weight:700;color:#7aa98e;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">Estimación para {potencia_kw} kW · {horas_riego}h</p>
+                <p style="font-size:0.75rem;font-weight:700;color:#7aa98e;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">Estimación para {potencia_kw} CV · {horas_riego}h</p>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
                     <span style="font-size:0.88rem;color:#0d2b1a;">🟢 Hora Valle (hora {h_min_c}:00)</span>
-                    <span style="font-family:'DM Mono',monospace;font-weight:700;color:#15803d;font-size:1rem;">{coste_valle:.4f} €</span>
+                    <span style="font-family:'DM Mono',monospace;font-weight:700;color:#15803d;font-size:1rem;">{coste_valle:.3f} €</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
                     <span style="font-size:0.88rem;color:#0d2b1a;">🟡 Precio Medio del día</span>
-                    <span style="font-family:'DM Mono',monospace;font-weight:700;color:#b45309;font-size:1rem;">{coste_medio:.4f} €</span>
+                    <span style="font-family:'DM Mono',monospace;font-weight:700;color:#b45309;font-size:1rem;">{coste_medio:.3f} €</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
                     <span style="font-size:0.88rem;color:#0d2b1a;">🔴 Hora Punta (hora {h_max_c}:00)</span>
-                    <span style="font-family:'DM Mono',monospace;font-weight:700;color:#b91c1c;font-size:1rem;">{coste_punta:.4f} €</span>
+                    <span style="font-family:'DM Mono',monospace;font-weight:700;color:#b91c1c;font-size:1rem;">{coste_punta:.3f} €</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0 4px;">
                     <span style="font-size:0.92rem;font-weight:700;color:#0d2b1a;">💰 Ahorro potencial</span>
-                    <span style="font-family:'DM Mono',monospace;font-weight:800;color:#15803d;font-size:1.15rem;">{ahorro_tot:.4f} €</span>
+                    <span style="font-family:'DM Mono',monospace;font-weight:800;color:#15803d;font-size:1.15rem;">{ahorro_tot:.3f} €</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1279,10 +1279,22 @@ def render_energia():
         fig_en.add_trace(go.Scatter(x=df_plot["fecha"], y=df_plot["precio_min"], name="Mínimo", line=dict(color="#27a05e", width=1.5, dash="dot"), hovertemplate="%{x|%d/%m/%Y}<br>Mín: %{y:.4f} €/kWh<extra></extra>"))
         fig_en.add_trace(go.Scatter(x=df_plot["fecha"], y=df_plot["precio_max"], name="Máximo", line=dict(color="#ef4444", width=1.5, dash="dot"), hovertemplate="%{x|%d/%m/%Y}<br>Máx: %{y:.4f} €/kWh<extra></extra>"))
         layout_en = {**CHART_LAYOUT}
-        layout_en["xaxis"] = dict(showgrid=False, color="#7aa98e", title="Fecha")
-        layout_en["yaxis"] = dict(gridcolor="#e8f5ee", color="#7aa98e", title="€/kWh")
+        layout_en["xaxis"] = dict(
+            showgrid=False,
+            color="#7aa98e",
+            title=dict(text="Fecha", font=dict(size=12, color="#7aa98e"), standoff=8),
+            tickfont=dict(size=10, color="#7aa98e"),
+            tickangle=-30,
+        )
+        layout_en["yaxis"] = dict(
+            gridcolor="#e8f5ee",
+            color="#7aa98e",
+            title=dict(text="€/kWh", font=dict(size=12, color="#7aa98e"), standoff=8),
+            tickfont=dict(size=10, color="#7aa98e"),
+        )
         layout_en["legend"] = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        fig_en.update_layout(height=260, **layout_en)
+        layout_en["margin"] = dict(l=10, r=10, t=30, b=50)
+        fig_en.update_layout(height=280, **layout_en)
         st.plotly_chart(fig_en, use_container_width=True, config={"displayModeBar": False})
 
     if not df_f.empty:
