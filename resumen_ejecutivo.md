@@ -1,6 +1,6 @@
 # 🌿 AgroTech — Resumen Ejecutivo
 
-> **"El campo extremeño produce con esfuerzo y perseverancia. AgroTech le da la información para que su dedicación rinda más."**
+> **"El campo extremeño produce con esfuerzo y perseverancia. AgroTech le da información de valor, para que su esfuerzo y dedicación rinda más."**
 
 ---
 
