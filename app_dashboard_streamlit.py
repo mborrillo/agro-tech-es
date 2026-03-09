@@ -598,27 +598,34 @@ def render_mercados():
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
     # ── Dataset filtrado (gráfico + tabla) ──
-    df_vis = pd.DataFrame()
+    df_vis   = pd.DataFrame()   # para el gráfico: último registro por producto
+    df_tabla = pd.DataFrame()   # para la tabla:   todos los registros del filtro
     if not df_c.empty:
         df_filt = df_c.copy()
-        # Filtro Año-Mes: si hay selección, quedarse solo con esos periodos
+        # Filtro Año-Mes
         if filtro_periodo:
             mask = df_filt["fecha"].apply(lambda d: d.strftime("%Y-%m")).isin(filtro_periodo)
             df_filt = df_filt[mask]
         # Filtro Fecha exacta
         if filtro_fecha:
             df_filt = df_filt[df_filt["fecha"].apply(lambda d: d.strftime("%d/%m/%Y")).isin(filtro_fecha)]
-        # Tomar último registro por producto dentro del periodo filtrado
-        if not df_filt.empty:
-            df_vis = df_filt.sort_values("fecha").groupby("producto").last().reset_index()
-        else:
-            df_vis = df_c.sort_values("fecha").groupby("producto").last().reset_index()
-        # Filtro Mercado Referencia
+
+        base = df_filt if not df_filt.empty else df_c
+
+        # df_vis: un registro por producto (para el gráfico de barras)
+        df_vis = base.sort_values("fecha").groupby("producto").last().reset_index()
+
+        # df_tabla: todos los registros del filtro (para la tabla)
+        df_tabla = base.sort_values("fecha", ascending=False).reset_index(drop=True)
+
+        # Filtro Mercado Referencia (aplica a ambos)
         if filtro_relacion and "relacion" in df_vis.columns:
-            df_vis = df_vis[df_vis["relacion"].isin(filtro_relacion)]
-        # Filtro texto
+            df_vis   = df_vis[df_vis["relacion"].isin(filtro_relacion)]
+            df_tabla = df_tabla[df_tabla["relacion"].isin(filtro_relacion)] if "relacion" in df_tabla.columns else df_tabla
+        # Filtro texto (aplica a ambos)
         if buscar_prod:
-            df_vis = df_vis[df_vis["producto"].str.contains(buscar_prod, case=False, na=False)]
+            df_vis   = df_vis[df_vis["producto"].str.contains(buscar_prod, case=False, na=False)]
+            df_tabla = df_tabla[df_tabla["producto"].str.contains(buscar_prod, case=False, na=False)]
 
     # ── Gráfico diferencial de arbitraje: una barra vertical por producto ──
     section_header("📊", "Diferencial de Arbitraje (€/kg)", "Verde: precio local superior al internacional · Rojo: precio local inferior al internacional")
@@ -763,19 +770,23 @@ def render_mercados():
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     fecha_str_header = ultimo.strftime('%Y-%m-%d') if ultimo is not None else '—'
+    n_registros_tabla = len(df_tabla)
+    subtitle_tabla = f"{n_registros_tabla} registros" if (filtro_periodo or filtro_fecha) else f"Última actualización: {fecha_str_header}"
 
     hdr_precios = st.columns([0.05, 0.78, 0.17])
     with hdr_precios[0]:
         st.markdown('<div style="width:40px;height:40px;background:linear-gradient(135deg,#27a05e,#3dbd76);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 12px rgba(39,160,94,0.3);margin-top:2px;">🗓️</div>', unsafe_allow_html=True)
     with hdr_precios[1]:
-        st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Precios del Día</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">Última actualización: {fecha_str_header}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="padding-top:4px;"><p style="font-size:1.25rem;font-weight:700;color:#0d2b1a;margin:0;">Precios del Día</p><p style="font-size:0.8rem;color:#7aa98e;margin:0;">{subtitle_tabla}</p></div>', unsafe_allow_html=True)
     with hdr_precios[2]:
-        if not df_vis.empty:
+        if not df_tabla.empty:
             import io
             output_precios = io.BytesIO()
             cols_export_precios = ["fecha", "sector", "producto", "tipo_referencia", "activo_referencia", "precio_local_kg", "precio_internacional_kg", "diferencial_arbitraje", "diferencial_pct", "variacion_local", "variacion_internacional", "zona_arbitraje", "recomendacion_arbitraje"]
-            cols_export_precios = [c for c in cols_export_precios if c in df_vis.columns]
-            df_export_precios = df_vis[cols_export_precios].sort_values("fecha", ascending=False).reset_index(drop=True) if "fecha" in df_vis.columns else df_vis[cols_export_precios].reset_index(drop=True)
+            cols_export_precios = [c for c in cols_export_precios if c in df_tabla.columns]
+            df_export_precios = df_tabla[cols_export_precios].copy()
+            if "fecha" in df_export_precios.columns:
+                df_export_precios["fecha"] = pd.to_datetime(df_export_precios["fecha"]).dt.strftime("%d/%m/%Y")
             with pd.ExcelWriter(output_precios, engine="openpyxl") as writer:
                 df_export_precios.to_excel(writer, index=False, sheet_name="Precios del Día")
             st.download_button(
@@ -789,7 +800,7 @@ def render_mercados():
 
     st.markdown("<div style='border-bottom:2px solid #d1ead9;margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
-    if not df_vis.empty:
+    if not df_tabla.empty:
         st.markdown("""
         <div style="display:grid;grid-template-columns:1.2fr 2fr 1.5fr 1.5fr 1.5fr 1fr;gap:8px;
                     padding:10px 20px;background:#f0faf4;border-radius:10px 10px 0 0;
@@ -803,7 +814,7 @@ def render_mercados():
         </div>
         """, unsafe_allow_html=True)
 
-        df_vis_sorted = df_vis.sort_values("fecha", ascending=False).reset_index(drop=True) if "fecha" in df_vis.columns else df_vis
+        df_vis_sorted = df_tabla  # ya viene ordenado fecha desc
         for _, row in df_vis_sorted.iterrows():
             try:
                 fecha_row_str = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
