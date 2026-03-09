@@ -13,7 +13,7 @@ Los agricultores y cooperativas de Extremadura operan con información fragmenta
 **Tres preguntas que responde esta herramienta:**
 
 1. **¿Cuándo y dónde regar?** Cruzando clima real (AEMET) con el precio de la luz (PVPC), el sistema indica si conviene regar ahora o esperar a la franja más barata.
-2. **¿A qué precio vender?** Comparando el precio local (Lonja de Extremadura) con los futuros internacionales (Chicago/NY), se detecta si el mercado local está infravalorado.
+2. **¿A qué precio vender?** Comparando el precio local (Lonja de Extremadura) con los futuros internacionales (Chicago), se detecta si el mercado local está infravalorado.
 3. **¿Hay riesgo climático?** Alertas automáticas por temperaturas extremas, heladas o condiciones adversas para tratamientos fitosanitarios.
 
 ---
@@ -34,42 +34,43 @@ Los agricultores y cooperativas de Extremadura operan con información fragmenta
 ## Funcionalidades del Sistema
 
 - **Dashboard principal** — KPIs de temperatura, humedad, precio kWh, alertas activas y salud por sector
-- **Mapa de Operaciones** — Estaciones geolocalizadas con estado (Óptimo / Precaución / Crítico) según tratamiento
-- **Monitor de Mercados** — Comparativa precio local vs. internacional con diferencial de arbitraje
+- **Mapa de Operaciones** — Estaciones geolocalizadas con estado (Óptimo / Precaución / Crítico) según condiciones de riego y tratamiento
+- **Monitor de Mercados** — Comparativa precio local vs. internacional con diferencial de arbitraje. Gráfico dual: Mercado Directo (€/kg vs Chicago) y Mercado Proxy (variación % local vs referencia global). Tabla con filtros de período que muestra el histórico completo seleccionado
 - **Monitor de Productos** — Evolución histórica de precios internacionales por categoría, exportable a Excel
-- **Monitor de Energía** — Panel de decisión diaria (semáforo PVPC), calculadora de ahorro por franja horaria e histórico de precios exportable a Excel
-- **Centro de Alertas** — Clima extremo y energía con estado por franja horaria
+- **Monitor de Energía** — Panel de decisión diaria (semáforo PVPC), calculadora de ahorro por franja horaria (kW) e histórico de precios exportable a Excel
+- **Centro de Alertas** — Clima extremo y seguimiento energético (en desarrollo)
 - **Configuración** — Estado de conexión a Supabase y estadísticas de tablas
 
 ---
 
-## Impacto del Cambio:
+## Impacto del Cambio
 
-| Ahora | Valor Diferencial de AgroTech |
+| Antes | Con AgroTech |
 |--------|------------|
-| **Riego basado en intuición o turno fijo** | Riego basado en coste €/kWh en tiempo real |
-| **Tratamientos con riesgo de deriva o evaporación** | Ventanas de aplicación con precisión meteorológica |
-| **Incertidumbre en el precio de venta local** | Arbitraje de precios con mercados internacionales |
+| Riego basado en intuición o turno fijo | Riego basado en coste €/kWh en tiempo real |
+| Tratamientos con riesgo de deriva o evaporación | Ventanas de aplicación con precisión meteorológica |
+| Incertidumbre en el precio de venta local | Arbitraje de precios con mercados internacionales |
 
 ---
 
 ## Arquitectura
 
 ```
-FUENTES EXTERNAS          SCRIPTS ETL (Python)       BASE DE DATOS          DASHBOARD
-─────────────────         ────────────────────        ─────────────────      ──────────
-AEMET API          ──▶   clima_monitor.py      ──▶   datos_clima            
-Yahoo Finance      ──▶   mercado_monitor.py    ──▶   mercados_int.          ──▶  Streamlit
-PVPC (REE)         ──▶   energia_monitor.py    ──▶   datos_energias              app_dashboard
-Lonja Extremadura  ──▶   monitor_agrotech_v1   ──▶   precios_agricolas           _streamlit.py
-                                                      │
-                                               Vistas SQL (lógica)
-                                               v_mapa_operaciones
-                                               v_comparativa_mercados
-                                               v_salud_sectores
-                                               v_alertas_clima_extrema
-                                               v_monitor_productos
-                                               v_resumen_energia
+FUENTES EXTERNAS          SCRIPTS ETL (Python)        BASE DE DATOS           DASHBOARD
+─────────────────         ────────────────────         ─────────────────       ──────────
+AEMET API          ──▶   clima_monitor.py       ──▶   datos_clima
+Yahoo Finance      ──▶   mercado_monitor.py     ──▶   mercados_internacionales ──▶  Streamlit
+PVPC (REE)         ──▶   energia_monitor.py     ──▶   datos_energias                app_dashboard
+Lonja Extremadura  ──▶   monitor_agrotech_v1    ──▶   precios_agricolas              _streamlit.py
+                                                       correlaciones_agro
+                                                       │
+                                                Vistas SQL (lógica de negocio)
+                                                v_mapa_operaciones
+                                                v_comparativa_mercados
+                                                v_salud_sectores
+                                                v_alertas_clima_extrema
+                                                v_monitor_productos
+                                                v_resumen_energia
 ```
 
 Los scripts ETL se ejecutan **automáticamente cada mañana** via GitHub Actions (`.github/workflows/`).
@@ -150,20 +151,21 @@ python energia_monitor.py
 | Tabla | Descripción |
 |-------|-------------|
 | `datos_clima` | Variables meteorológicas por estación y fecha (AEMET) |
-| `precios_agricolas` | Precios de cierre de la Lonja de Extremadura |
-| `mercados_internacionales` | Futuros internacionales (Chicago, NY) via Yahoo Finance |
+| `precios_agricolas` | Precios de cierre de la Lonja de Extremadura (precio_min, precio_max en €/kg) |
+| `mercados_internacionales` | Futuros internacionales (Chicago) via Yahoo Finance (precio_cierre en USD, unidades originales por activo) |
 | `datos_energias` | Analytics PVPC diarios: precio medio, mínimo, máximo, hora óptima y variación vs día anterior (REE) |
-| `correlaciones_agro` | Mapa de correlación entre productos locales y mercados de referencia internacionales |
+| `correlaciones_agro` | Mapa de correlación entre productos locales y activos internacionales de referencia, con clasificación DIRECTO/PROXY |
+| `estaciones_comarca` | Catálogo de estaciones AEMET con coordenadas y comarca asignada |
 
 ### Vistas SQL (lógica de negocio)
 
 | Vista | Qué calcula |
 |-------|-------------|
 | `v_mapa_operaciones` | Estado de cada estación: coordenadas, clima actual, recomendaciones de riego y tratamiento |
-| `v_comparativa_mercados` | Diferencial de arbitraje: precio local vs. internacional convertido a €/kg |
-| `v_salud_sectores` | Salud de cada sector (Cereales, Aceites, Ganadería…): variación media y productos al alza/baja |
-| `v_alertas_clima_extrema` | Registros con temperaturas o condiciones fuera de rango normal |
-| `v_resumen_energia` | Analytics PVPC diarios: estado de costo (ALTO/NORMAL/BAJO) y recomendación de consumo por franja |
+| `v_comparativa_mercados` | Diferencial de arbitraje: precio local vs. internacional convertido a €/kg. Clasificación DIRECTO/PROXY y zona (FAVORABLE / EQUILIBRADO / DESFAVORABLE para directos; ACOMPAÑANDO / NEUTRO / DIVERGIENDO para proxy) |
+| `v_salud_sectores` | Salud de cada sector (Cereales, Aceites, Ganadería…): variación media, porcentaje al alza y estado ÓPTIMO/ATENCIÓN/ALERTA |
+| `v_alertas_clima_extrema` | Registros con condiciones fuera de rango para riego y tratamientos fitosanitarios |
+| `v_resumen_energia` | Analytics PVPC diarios: estado de coste (ALTO/NORMAL/BAJO) y recomendación de consumo por franja |
 | `v_monitor_productos` | Evolución histórica de productos internacionales con tendencia y variación |
 
 ---
@@ -185,7 +187,7 @@ Los scripts ETL se ejecutan via **GitHub Actions** con el schedule definido en `
 
 | Capa | Tecnología |
 |------|-----------|
-| Frontend / Dashboard | Streamlit, Plotly, HTML/CSS embebido |
+| Frontend / Dashboard | Streamlit, Plotly, Matplotlib, HTML/CSS embebido |
 | Base de datos | Supabase (PostgreSQL) |
 | ETL / Ingesta | Python (requests, yfinance, supabase-py) |
 | Automatización | GitHub Actions |
