@@ -669,7 +669,7 @@ def render_mercados():
                 for sp in ax.spines.values(): sp.set_visible(False)
                 return
             df_g = df_g.copy()
-            df_g[col_val] = pd.to_numeric(df_g[col_val], errors="coerce").fillna(0)
+            df_g[col_val] = pd.to_numeric(pd.Series(df_g[col_val]), errors="coerce").fillna(0)
             prods  = df_g["producto"].tolist()
             vals   = df_g[col_val].tolist()
             zonas  = df_g[col_zona].tolist() if col_zona in df_g.columns else [None]*len(vals)
@@ -724,7 +724,12 @@ def render_mercados():
                        fontweight="700", color="#0d2b1a", pad=8, loc="left")
         if not df_proxy.empty:
             df_pp = df_proxy.copy()
-            df_pp["var_loc_plot"] = pd.to_numeric(df_pp.get("variacion_local"), errors="coerce").fillna(0)
+            if "variacion_local" in df_pp.columns:
+                df_pp["var_loc_plot"] = pd.to_numeric(df_pp["variacion_local"], errors="coerce").fillna(0)
+            elif "diferencial_arbitraje" in df_pp.columns:
+                df_pp["var_loc_plot"] = pd.to_numeric(df_pp["diferencial_arbitraje"], errors="coerce").fillna(0)
+            else:
+                df_pp["var_loc_plot"] = 0.0
         else:
             df_pp = pd.DataFrame()
         _render_bars_merc(ax_p, df_pp, "var_loc_plot", "zona_arbitraje",
@@ -797,19 +802,33 @@ def render_mercados():
                 fecha_row_str = pd.to_datetime(row.get("fecha", "")).strftime("%d/%m/%Y")
             except Exception:
                 fecha_row_str = str(row.get("fecha", "—"))
-            dif      = float(row.get("diferencial_arbitraje", 0) or 0)
-            local    = float(row.get("precio_local_kg", 0) or 0)
-            intl_raw = row.get("precio_internacional_kg", None)
-            intl     = float(intl_raw) if intl_raw is not None else 0.0
-            tipo_ref = str(row.get("tipo_referencia", "") or "").upper()
-            rec      = str(row.get("recomendacion_arbitraje", "") or "")
-            relacion = str(row.get("relacion", "") or row.get("activo_referencia", "")).lower()
-            dif_pct_raw = row.get("diferencial_pct", None)
-            dif_pct  = float(dif_pct_raw) if dif_pct_raw is not None else None
+            import math as _math
+            def _val(v, default=0.0):
+                """Convierte NaN/None a default, devuelve float limpio."""
+                if v is None: return default
+                try:
+                    f = float(v)
+                    return default if _math.isnan(f) or _math.isinf(f) else f
+                except Exception:
+                    return default
+            def _notnull(v):
+                """True solo si v tiene un valor numérico real (no None ni NaN)."""
+                if v is None: return False
+                try: return not (_math.isnan(float(v)) or _math.isinf(float(v)))
+                except Exception: return False
+
+            dif      = _val(row.get("diferencial_arbitraje"))
+            local    = _val(row.get("precio_local_kg"))
+            intl_raw = row.get("precio_internacional_kg")
+            intl     = _val(intl_raw)
+            tipo_ref = str(row.get("tipo_referencia") or "").upper()
+            rec      = str(row.get("recomendacion_arbitraje") or "")
+            relacion = str(row.get("relacion") or row.get("activo_referencia") or "").lower()
+            dif_pct  = _val(row.get("diferencial_pct")) if _notnull(row.get("diferencial_pct")) else None
             sign     = "+" if dif > 0 else ""
 
             # Determinar zona: usar campo si existe, si no derivar del diferencial numérico
-            zona_raw = str(row.get("zona_arbitraje", "") or "").upper()
+            zona_raw = str(row.get("zona_arbitraje") or "").upper()
             if zona_raw in ("FAVORABLE", "EQUILIBRADO", "DESFAVORABLE", "ACOMPAÑANDO", "DIVERGIENDO", "NEUTRO"):
                 zona = zona_raw
             elif dif > 0.05:
@@ -820,13 +839,15 @@ def render_mercados():
                 zona = "EQUILIBRADO"
 
             # Determinar si es comparativa directa de precio o proxy de tendencia
+            # Usar SOLO el nombre de la relacion — no el valor de precio_internacional_kg
+            # porque la vista vieja lo calcula para todos aunque sea un proxy conceptual
             RELACIONES_DIRECTAS = {"trigo", "maiz", "soja", "arroz"}
             if tipo_ref == "DIRECTO":
                 es_directo = True
             elif tipo_ref == "PROXY":
                 es_directo = False
             else:
-                es_directo = relacion in RELACIONES_DIRECTAS or intl_raw is not None
+                es_directo = relacion in RELACIONES_DIRECTAS
 
             intl_str  = f"{intl:.2f} €/kg" if (es_directo and intl > 0) else "— (ref. proxy)"
             badge_str = f"{sign}{dif:.2f} €/kg" if es_directo else zona.title()
@@ -857,7 +878,7 @@ def render_mercados():
                     <span style="background:{b_bg};color:{b_col};font-weight:700;font-size:0.82rem;padding:4px 12px;border-radius:20px;font-family:'DM Mono',monospace;">{badge_str}</span>
                     {pct_span_final}
                 </span>
-                <span title="{rec}">{tend_svg}</span>
+                <span style="display:inline-flex;align-items:center;">{tend_svg}</span>
             </div>
             """, unsafe_allow_html=True)
 
