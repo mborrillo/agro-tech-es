@@ -108,6 +108,26 @@ button[kind="header"] { display: flex !important; visibility: visible !important
 .main .stSelectbox > label { color: #0d2b1a !important; }
 .main .stTextInput > label { color: #0d2b1a !important; }
 [data-testid="stForm"] label { color: #0d2b1a !important; }
+
+/* ── Botones Excel ─────────────────────────────────────────────────── */
+[data-testid="stDownloadButton"] button,
+[data-testid="stDownloadButton"] > button {
+    background: linear-gradient(135deg, #27a05e, #1f7a48) !important;
+    color: white !important;
+    border: none !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(39,160,94,0.25) !important;
+}
+[data-testid="stDownloadButton"] button:hover,
+[data-testid="stDownloadButton"] > button:hover {
+    background: linear-gradient(135deg, #27a05e, #1f7a48) !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 16px rgba(39,160,94,0.4) !important;
+    transform: translateY(-1px) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -889,7 +909,12 @@ def render_mercados():
                 # Fallback vista vieja: relacion = nombre activo
                 es_directo = relacion in RELACIONES_DIRECTAS
 
-            intl_str  = f"{intl:.2f} €/kg" if (es_directo and intl > 0) else "— (ref. proxy)"
+            if es_directo and intl > 0:
+                intl_str = f"{intl:.3f} €/kg"
+            elif not es_directo and intl > 0:
+                intl_str = f'{intl:.3f} €/kg <span style="font-size:0.72rem;color:#7aa98e;">(ref. proxy)</span>'
+            else:
+                intl_str = "—"
             badge_str = f"{sign}{dif:.2f} €/kg" if es_directo else zona.title()
             pct_str   = f"{sign}{dif_pct:.1f}%" if (es_directo and dif_pct is not None) else ""
 
