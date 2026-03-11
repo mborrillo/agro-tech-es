@@ -1327,29 +1327,99 @@ def render_energia():
     st.markdown("<div style='border-bottom:2px solid #d1ead9;margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
     if len(df_f) > 1:
-        df_plot = df_f.sort_values("fecha")
-        colores_bar = ["#ef4444" if str(e).upper()=="ALTO" else "#27a05e" if str(e).upper()=="BAJO" else "#f59e0b" for e in df_plot.get("estado_costo", ["NORMAL"]*len(df_plot))]
+        df_plot = df_f.sort_values("fecha").copy()
+
+        # Color semáforo por estado_costo
+        def _color_estado(e):
+            s = str(e).upper()
+            if s == "ALTO":  return "#ef4444"
+            if s == "BAJO":  return "#27a05e"
+            return "#f59e0b"
+
+        colores_bar  = [_color_estado(e) for e in df_plot.get("estado_costo", ["NORMAL"]*len(df_plot))]
+        # Etiqueta de hover personalizada por barra
+        hover_labels = []
+        for _, r in df_plot.iterrows():
+            est  = str(r.get("estado_costo","—")).upper()
+            icono = "🔴" if est=="ALTO" else "🟢" if est=="BAJO" else "🟡"
+            hover_labels.append(
+                f"<b>{r['fecha'].strftime('%d/%m/%Y')}</b><br>"
+                f"Precio medio: <b>{float(r.get('precio_medio',0) or 0):.4f} €/kWh</b><br>"
+                f"Mínimo: {float(r.get('precio_min',0) or 0):.4f} €  (hora {r.get('hora_min','—')}:00h)<br>"
+                f"Máximo: {float(r.get('precio_max',0) or 0):.4f} €  (hora {r.get('hora_max','—')}:00h)<br>"
+                f"Estado: {icono} {est}"
+            )
+
         fig_en = go.Figure()
-        fig_en.add_trace(go.Bar(x=df_plot["fecha"], y=df_plot["precio_medio"], name="Precio Medio", marker_color=colores_bar, opacity=0.85, hovertemplate="%{x|%d/%m/%Y}<br>Medio: %{y:.4f} €/kWh<extra></extra>"))
-        fig_en.add_trace(go.Scatter(x=df_plot["fecha"], y=df_plot["precio_min"], name="Mínimo", line=dict(color="#27a05e", width=1.5, dash="dot"), hovertemplate="%{x|%d/%m/%Y}<br>Mín: %{y:.4f} €/kWh<extra></extra>"))
-        fig_en.add_trace(go.Scatter(x=df_plot["fecha"], y=df_plot["precio_max"], name="Máximo", line=dict(color="#ef4444", width=1.5, dash="dot"), hovertemplate="%{x|%d/%m/%Y}<br>Máx: %{y:.4f} €/kWh<extra></extra>"))
+
+        # Barras verticales — una por día, coloreadas por semáforo
+        fig_en.add_trace(go.Bar(
+            x=df_plot["fecha"],
+            y=df_plot["precio_medio"],
+            name="Precio Medio",
+            marker=dict(
+                color=colores_bar,
+                line=dict(color="rgba(0,0,0,0.08)", width=0.5),
+                opacity=0.88,
+            ),
+            text=hover_labels,
+            hovertemplate="%{text}<extra></extra>",
+        ))
+
+        # Línea de mínimos diarios
+        fig_en.add_trace(go.Scatter(
+            x=df_plot["fecha"],
+            y=df_plot["precio_min"],
+            name="Mínimo diario",
+            mode="lines+markers",
+            line=dict(color="#1a5c38", width=1.5, dash="dot"),
+            marker=dict(size=5, color="#1a5c38"),
+            hovertemplate="%{x|%d/%m/%Y}<br>Mín: %{y:.4f} €/kWh<extra></extra>",
+        ))
+
+        # Línea de máximos diarios
+        fig_en.add_trace(go.Scatter(
+            x=df_plot["fecha"],
+            y=df_plot["precio_max"],
+            name="Máximo diario",
+            mode="lines+markers",
+            line=dict(color="#b91c1c", width=1.5, dash="dot"),
+            marker=dict(size=5, color="#b91c1c"),
+            hovertemplate="%{x|%d/%m/%Y}<br>Máx: %{y:.4f} €/kWh<extra></extra>",
+        ))
+
         layout_en = {**CHART_LAYOUT}
         layout_en["xaxis"] = dict(
             showgrid=False,
-            color="#7aa98e",
-            title=dict(text="Fecha", font=dict(size=12, color="#7aa98e"), standoff=8),
-            tickfont=dict(size=10, color="#7aa98e"),
-            tickangle=-30,
+            title=dict(text="Fecha", font=dict(size=12, color="#0d2b1a"), standoff=10),
+            tickfont=dict(size=10, color="#0d2b1a", family="DM Mono, monospace"),
+            tickformat="%d/%m/%Y",
+            tickangle=0,
+            linecolor="#d1ead9",
+            linewidth=1,
+            ticks="outside",
+            tickcolor="#7aa98e",
         )
         layout_en["yaxis"] = dict(
-            gridcolor="#e8f5ee",
-            color="#7aa98e",
-            title=dict(text="€/kWh", font=dict(size=12, color="#7aa98e"), standoff=8),
-            tickfont=dict(size=10, color="#7aa98e"),
+            gridcolor="#d1ead9",
+            gridwidth=0.8,
+            title=dict(text="€/kWh", font=dict(size=12, color="#0d2b1a"), standoff=10),
+            tickfont=dict(size=10, color="#0d2b1a", family="DM Mono, monospace"),
+            tickformat=".4f",
+            zeroline=False,
+            linecolor="#d1ead9",
         )
-        layout_en["legend"] = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        layout_en["margin"] = dict(l=10, r=10, t=30, b=50)
-        fig_en.update_layout(height=280, **layout_en)
+        layout_en["legend"] = dict(
+            orientation="h", yanchor="bottom", y=1.04, xanchor="left", x=0,
+            font=dict(size=11, color="#0d2b1a"),
+            bgcolor="rgba(255,255,255,0.85)",
+            bordercolor="#d1ead9", borderwidth=1,
+        )
+        layout_en["bargap"]  = 0.28
+        layout_en["margin"]  = dict(l=10, r=10, t=40, b=55)
+        layout_en["plot_bgcolor"] = "white"
+        layout_en["paper_bgcolor"] = "rgba(0,0,0,0)"
+        fig_en.update_layout(height=320, **layout_en)
         st.plotly_chart(fig_en, use_container_width=True, config={"displayModeBar": False})
 
     if not df_f.empty:
