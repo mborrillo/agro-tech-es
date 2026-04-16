@@ -108,7 +108,7 @@ Agrega las 24 horas del PVPC en un único registro diario. Campos clave: `precio
 - ✅ Monitor de Mercados: gráfico dual DIRECTO/PROXY, tabla con filtros por período histórico completo y exportación Excel
 - ✅ Monitor de Energía: panel de decisión diaria, calculadora de ahorro (kW) y histórico PVPC con ejes legibles
 - ✅ Exportación de datos a Excel en todas las secciones
-- 🔄 En desarrollo: frontend complementario para móviles: [agro-tech-es.lovable.app](https://agro-tech-es.lovable.app)
+- ✅ Frontend complementario para móviles: [agro-tech-es.lovable.app](https://agro-tech-es.lovable.app)
 - 🔄 Próximo: autenticación por roles, notificaciones push, API abierta para terceros
 
 ---
