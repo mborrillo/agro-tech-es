@@ -131,7 +131,7 @@ AgroTech está en fase de Validación. Nos interesa contactar con agricultores i
 - Probar la herramienta en su propia explotación sin compromiso.
 
 *Para inversión o integración institucional:*
-https://mborrillo.bolt.host/ · WhatsApp: https://wa.link/vvzmot
+https://marcos-borrillo.bolt.host · WhatsApp: https://wa.link/vvzmot
 
 ---
 
