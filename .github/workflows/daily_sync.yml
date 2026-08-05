@@ -3,26 +3,25 @@ name: Actualizacion Diaria Monitor Campo
 on:
   schedule:
     - cron: '0 * * * *'  # EJECUTAR TODOS LOS DÍAS, A CADA HORA
-  workflow_dispatch:     # Esto te permite dar al botón "Run workflow" en GitHub ahora mismo
+  workflow_dispatch:     # Permite ejecutar manualmente desde GitHub Actions
 
 jobs:
   run_scraper:
     runs-on: ubuntu-latest
     steps:
       - name: Descargar codigo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Instalar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       - name: Instalar librerias
         run: pip install -r requirements_monitors.txt
 
       - name: Ejecutar Monitores
         env:
-          # ESTO ES VITAL: Pasa las credenciales a los scripts
           SUPABASE_URL: "https://zzucvsremavkikecsptg.supabase.co"
           SUPABASE_KEY: "sb_secret_wfduZo57SIwf3rs1MI13DA_pI5NI6HG"
           AEMET_API_KEY: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2OGJvcnJpc21hckBnbWFpbC5jb20iLCJqdGkiOiI1YzRjYzlkZC04OTI0LTQzZjgtOTI1OC1hZWZiZjRhOWIzNGMiLCJpc3MiOiJBRU1FVCIsImlhdCI6MTc3MTA4MjI3MSwidXNlcklkIjoiNWM0Y2M5ZGQtODkyNC00M2Y4LTkyNTgtYWVmYmY0YTliMzRjIiwicm9sZSI6IiJ9.EQqSYmGFYaCQvhzPv2gxYHkwa1Zyqr9sDLRCG8xLaV4"
@@ -30,4 +29,4 @@ jobs:
           python clima_monitor.py
           python mercado_monitor.py
           python energia_monitor.py
-          python monitor_agrotech.py 
+          python monitor_agrotech.py
