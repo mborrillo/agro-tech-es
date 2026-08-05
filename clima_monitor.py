@@ -16,16 +16,19 @@ from datetime import datetime
 import sys
 
 # --- CONFIGURACIÓN ---
-SUPABASE_URL = "https://zzucvsremavkikecsptg.supabase.co"
-SUPABASE_KEY = "sb_secret_wfduZo57SIwf3rs1MI13DA_pI5NI6HG" 
-AEMET_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2OGJvcnJpc21hckBnbWFpbC5jb20iLCJqdGkiOiI1YzRjYzlkZC04OTI0LTQzZjgtOTI1OC1hZWZiZjRhOWIzNGMiLCJpc3MiOiJBRU1FVCIsImlhdCI6MTc3MTA4MjI3MSwidXNlcklkIjoiNWM0Y2M5ZGQtODkyNC00M2Y4LTkyNTgtYWVmYmY0YTliMzRjIiwicm9sZSI6IiJ9.EQqSYmGFYaCQvhzPv2gxYHkwa1Zyqr9sDLRCG8xLaV4"
+# Lee dinámicamente los Secrets de GitHub pasados por el flujo de trabajo
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://zzucvsremavkikecsptg.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+AEMET_API_KEY = os.environ.get("AEMET_API_KEY")
+
+if not SUPABASE_KEY or not AEMET_API_KEY:
+    print("❌ Error: Faltan las variables de entorno SUPABASE_KEY o AEMET_API_KEY.")
+    sys.exit(1)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # DICCIONARIO DE GEOPOSICIÓN — códigos AEMET oficiales verificados 06/03/2026
-# Fuente: https://x-y.es/aemet/ca-extremadura (54 estaciones activas Extremadura)
 ESTACIONES_EXTREMADURA = {
-    # ── Estaciones originales (códigos correctos) ──────────────────────────
     "4478X": {"nombre": "BADAJOZ",                    "lat": 38.882, "lon": -6.845, "altitud": 174},
     "3469A": {"nombre": "CÁCERES",                    "lat": 39.482, "lon": -6.340, "altitud": 394},
     "4410X": {"nombre": "MÉRIDA",                     "lat": 38.922, "lon": -6.350, "altitud": 228},
@@ -81,51 +84,25 @@ ESTACIONES_EXTREMADURA = {
     "4347X": {"nombre": "ZORITA",                     "lat": 39.300, "lon": -5.717, "altitud": 413},
 }
 
-def obtener_clima():
-    # ... (tu lógica de llamada a la API de AEMET)
-    
-    registros_clima = []
-    
-    # Supongamos que 'dato' es el JSON que devuelve AEMET para una estación
-    for dato in datos_aemet:
-        id_estacion = dato.get('idema')
-        
-        if id_estacion in ESTACIONES_EXTREMADURA:
-            info_geo = ESTACIONES_EXTREMADURA[id_estacion]
-            
-            registro = {
-                "fecha": dato.get('fint'),
-                "localidad": info_geo['nombre'],
-                "latitud": info_geo['lat'],
-                "longitud": info_geo['lon'],
-                "temperatura": dato.get('ta'),
-                "humedad": dato.get('hr'),
-                "viento_velocidad": dato.get('vv'),
-                "precipitacion": dato.get('prec')
-            }
-            registros_clima.append(registro)
-
-    # GUARDADO EN SUPABASE
-    supabase.table("datos_clima").upsert(registros_clima).execute()
-
 def obtener_clima_inteligente():
     print(f"🌦️ Iniciando captura de clima inteligente: {datetime.now()}")
     
-    # Construido dinámicamente desde ESTACIONES_EXTREMADURA — agregar estaciones solo ahí
     ciudades = {info["nombre"]: id_est for id_est, info in ESTACIONES_EXTREMADURA.items()}
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
-    # Sesión reutilizable para reducir overhead de conexión
     session = requests.Session()
     adapter = HTTPAdapter(max_retries=1)
     session.mount("https://", adapter)
 
     for ciudad, id_estacion in ciudades.items():
+        time.sleep(1.2)  # Pausa previa entre consultas para evitar el rate limit 429
+        
         url_aemet = f"https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/{id_estacion}"
         params = {"api_key": AEMET_API_KEY}
 
         try:
             r = session.get(url_aemet, params=params, timeout=8)
+            
             if r.status_code == 429:
                 print(f"⚠️  {ciudad}: AEMET rate limit (429) — esperando 5s")
                 time.sleep(5)
@@ -133,58 +110,56 @@ def obtener_clima_inteligente():
             if r.status_code != 200:
                 print(f"⚠️  {ciudad}: AEMET status {r.status_code}")
                 continue
-            if r.status_code == 200:
-                datos_url = r.json().get('datos')
-                if not datos_url:
-                    print(f"⚠️  {ciudad}: AEMET no devolvió URL de datos (estación sin lecturas)")
-                    continue
-                resp_datos = session.get(datos_url, timeout=8)
-                if resp_datos.status_code != 200 or not resp_datos.text.strip():
-                    print(f"⚠️  {ciudad}: respuesta vacía de AEMET")
-                    continue
-                lecturas = resp_datos.json()
+                
+            datos_url = r.json().get('datos')
+            if not datos_url:
+                print(f"⚠️  {ciudad}: AEMET no devolvió URL de datos (estación sin lecturas)")
+                continue
+                
+            resp_datos = session.get(datos_url, timeout=8)
+            if resp_datos.status_code != 200 or not resp_datos.text.strip():
+                print(f"⚠️  {ciudad}: respuesta vacía de AEMET")
+                continue
+                
+            lecturas = resp_datos.json()
 
-                if lecturas:
-                    # Filtramos solo las lecturas que pertenecen al día de hoy
-                    lecturas_hoy = [l for l in lecturas if l.get('fint', '').startswith(fecha_hoy)]
-                    
-                    if not lecturas_hoy:
-                        # Si es muy temprano, usamos la última lectura disponible para tener continuidad
-                        lecturas_hoy = [lecturas[-1]]
+            if lecturas:
+                lecturas_hoy = [l for l in lecturas if l.get('fint', '').startswith(fecha_hoy)]
+                
+                if not lecturas_hoy:
+                    lecturas_hoy = [lecturas[-1]]
 
-                    # --- PROCESAMIENTO ANALÍTICO ---
-                    temps = [l.get('ta') for l in lecturas_hoy if l.get('ta') is not None]
-                    precips = [l.get('prec') for l in lecturas_hoy if l.get('prec') is not None]
-                    
-                    t_max = max(temps) if temps else None
-                    t_min = min(temps) if temps else None
-                    p_acumulada = sum(precips) if precips else 0
-                    
-                    ultima = lecturas_hoy[-1]
-                    
-                    # 🔧 FIX: Obtener coordenadas del diccionario de estaciones
-                    info_estacion = ESTACIONES_EXTREMADURA.get(id_estacion, {})
-                    lat = info_estacion.get('lat')
-                    lon = info_estacion.get('lon')
+                temps = [l.get('ta') for l in lecturas_hoy if l.get('ta') is not None]
+                precips = [l.get('prec') for l in lecturas_hoy if l.get('prec') is not None]
+                
+                t_max = max(temps) if temps else None
+                t_min = min(temps) if temps else None
+                p_acumulada = sum(precips) if precips else 0
+                
+                ultima = lecturas_hoy[-1]
+                
+                info_estacion = ESTACIONES_EXTREMADURA.get(id_estacion, {})
+                lat = info_estacion.get('lat')
+                lon = info_estacion.get('lon')
 
-                    registro = {
-                        "fecha": fecha_hoy,
-                        "estacion": ciudad,
-                        "id_estacion": id_estacion,
-                        "temp_max": t_max,
-                        "temp_min": t_min,
-                        "temp_actual": ultima.get('ta'),
-                        "precipitacion": round(p_acumulada, 2),
-                        "humedad": ultima.get('hr'),
-                        "viento_vel": ultima.get('vv'),
-                        "latitud": lat,
-                        "longitud": lon
-                    }
+                registro = {
+                    "fecha": fecha_hoy,
+                    "estacion": ciudad,
+                    "id_estacion": id_estacion,
+                    "temp_max": t_max,
+                    "temp_min": t_min,
+                    "temp_actual": ultima.get('ta'),
+                    "precipitacion": round(p_acumulada, 2),
+                    "humedad": ultima.get('hr'),
+                    "viento_vel": ultima.get('vv'),
+                    "latitud": lat,
+                    "longitud": lon
+                }
 
-                    supabase.table("datos_clima").upsert(registro, on_conflict="fecha, estacion").execute()
-                    print(f"✅ {ciudad}: Max {t_max}° / Min {t_min}° / Lluvia {round(p_acumulada, 2)}mm")
-                    time.sleep(1.5)  # Respetar rate limit AEMET
-        
+                # Inserción/actualización en Supabase enviando lista de un solo diccionario [registro]
+                supabase.table("datos_clima").upsert([registro], on_conflict="fecha, estacion").execute()
+                print(f"✅ {ciudad}: Max {t_max}° / Min {t_min}° / Lluvia {round(p_acumulada, 2)}mm")
+
         except Exception as e:
             print(f"❌ Error procesando {ciudad}: {e}")
 
