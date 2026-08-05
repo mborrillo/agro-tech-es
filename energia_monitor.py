@@ -27,7 +27,16 @@ from collections import Counter
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://zzucvsremavkikecsptg.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Inicialización robusta para GitHub Actions y Service Role
+supabase: Client = create_client(
+    SUPABASE_URL, 
+    SUPABASE_KEY,
+    options=ClientOptions(
+        postgrest_client_timeout=20,
+        storage_client_timeout=20,
+        persist_session=False
+    )
+)
 
 def obtener_tramo(hora, es_fin_de_semana):
     if es_fin_de_semana:
