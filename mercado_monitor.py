@@ -7,6 +7,7 @@
 # REPO: https://github.com/mborrillo/agro-tech-es
 # ══════════════════════════════════════════════════════════════════
 
+import os
 import yfinance as yf
 from supabase import create_client, Client
 from datetime import datetime
