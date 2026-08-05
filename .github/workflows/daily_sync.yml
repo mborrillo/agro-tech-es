@@ -3,7 +3,7 @@ name: Actualizacion Diaria Monitor Campo
 on:
   schedule:
     - cron: '0 * * * *'  # EJECUTAR TODOS LOS DÍAS, A CADA HORA
-  workflow_dispatch:     # Permite ejecutar manualmente desde GitHub Actions
+  workflow_dispatch:     # Permite dar al botón "Run workflow" manualmente
 
 jobs:
   run_scraper:
@@ -23,8 +23,8 @@ jobs:
       - name: Ejecutar Monitores
         env:
           SUPABASE_URL: "https://zzucvsremavkikecsptg.supabase.co"
-          SUPABASE_KEY: "sb_publishable_bnh1EYxSi_Omwtm-THae7A_lcCldwDY"
-          AEMET_API_KEY: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2OGJvcnJpc21hckBnbWFpbC5jb20iLCJqdGkiOiI1YzRjYzlkZC04OTI0LTQzZjgtOTI1OC1hZWZiZjRhOWIzNGMiLCJpc3MiOiJBRU1FVCIsImlhdCI6MTc3MTA4MjI3MSwidXNlcklkIjoiNWM0Y2M5ZGQtODkyNC00M2Y4LTkyNTgtYWVmYmY0YTliMzRjIiwicm9sZSI6IiJ9.EQqSYmGFYaCQvhzPv2gxYHkwa1Zyqr9sDLRCG8xLaV4"
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
         run: |
           python clima_monitor.py
           python mercado_monitor.py
