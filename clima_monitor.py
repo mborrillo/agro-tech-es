@@ -15,8 +15,7 @@ from supabase import create_client, Client
 from datetime import datetime
 import sys
 
-# --- CONFIGURACIÓN ---
-# Lee dinámicamente los Secrets de GitHub pasados por el flujo de trabajo
+# --- CONFIGURACIÓN DE VARIABLES DE ENTORNO ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://zzucvsremavkikecsptg.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 AEMET_API_KEY = os.environ.get("AEMET_API_KEY")
@@ -25,9 +24,10 @@ if not SUPABASE_KEY or not AEMET_API_KEY:
     print("❌ Error: Faltan las variables de entorno SUPABASE_KEY o AEMET_API_KEY.")
     sys.exit(1)
 
+# Inicializar cliente de Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# DICCIONARIO DE GEOPOSICIÓN — códigos AEMET oficiales verificados 06/03/2026
+# DICCIONARIO DE GEOPOSICIÓN — 54 estaciones activas Extremadura
 ESTACIONES_EXTREMADURA = {
     "4478X": {"nombre": "BADAJOZ",                    "lat": 38.882, "lon": -6.845, "altitud": 174},
     "3469A": {"nombre": "CÁCERES",                    "lat": 39.482, "lon": -6.340, "altitud": 394},
@@ -94,19 +94,33 @@ def obtener_clima_inteligente():
     adapter = HTTPAdapter(max_retries=1)
     session.mount("https://", adapter)
 
+    # Limpieza de la API key de AEMET para evitar caracteres invisibles
+    api_key_clean = AEMET_API_KEY.strip()
+
+    # Headers HTTP simulando un navegador para evitar bloqueos 401/403
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "cache-control": "no-cache",
+        "api_key": api_key_clean
+    }
+
     for ciudad, id_estacion in ciudades.items():
-        time.sleep(1.2)  # Pausa previa entre consultas para evitar el rate limit 429
+        time.sleep(1.5)  # Pausa previa entre consultas para evitar el rate limit 429
         
-        url_aemet = f"https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/{id_estacion}"
-        params = {"api_key": AEMET_API_KEY}
+        url_aemet = f"https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/{id_estacion}?api_key={api_key_clean}"
 
         try:
-            r = session.get(url_aemet, params=params, timeout=8)
+            r = session.get(url_aemet, headers=headers, timeout=10)
             
+            if r.status_code == 401:
+                print(f"❌ 401 en {ciudad} — Key probada (Longitud: {len(api_key_clean)})")
+                continue
+                
             if r.status_code == 429:
                 print(f"⚠️  {ciudad}: AEMET rate limit (429) — esperando 5s")
                 time.sleep(5)
                 continue
+                
             if r.status_code != 200:
                 print(f"⚠️  {ciudad}: AEMET status {r.status_code}")
                 continue
@@ -116,7 +130,7 @@ def obtener_clima_inteligente():
                 print(f"⚠️  {ciudad}: AEMET no devolvió URL de datos (estación sin lecturas)")
                 continue
                 
-            resp_datos = session.get(datos_url, timeout=8)
+            resp_datos = session.get(datos_url, headers=headers, timeout=10)
             if resp_datos.status_code != 200 or not resp_datos.text.strip():
                 print(f"⚠️  {ciudad}: respuesta vacía de AEMET")
                 continue
@@ -125,7 +139,6 @@ def obtener_clima_inteligente():
 
             if lecturas:
                 lecturas_hoy = [l for l in lecturas if l.get('fint', '').startswith(fecha_hoy)]
-                
                 if not lecturas_hoy:
                     lecturas_hoy = [lecturas[-1]]
 
@@ -137,10 +150,7 @@ def obtener_clima_inteligente():
                 p_acumulada = sum(precips) if precips else 0
                 
                 ultima = lecturas_hoy[-1]
-                
                 info_estacion = ESTACIONES_EXTREMADURA.get(id_estacion, {})
-                lat = info_estacion.get('lat')
-                lon = info_estacion.get('lon')
 
                 registro = {
                     "fecha": fecha_hoy,
@@ -152,11 +162,11 @@ def obtener_clima_inteligente():
                     "precipitacion": round(p_acumulada, 2),
                     "humedad": ultima.get('hr'),
                     "viento_vel": ultima.get('vv'),
-                    "latitud": lat,
-                    "longitud": lon
+                    "latitud": info_estacion.get('lat'),
+                    "longitud": info_estacion.get('lon')
                 }
 
-                # Inserción/actualización en Supabase enviando lista de un solo diccionario [registro]
+                # Inserción/actualización en Supabase
                 supabase.table("datos_clima").upsert([registro], on_conflict="fecha, estacion").execute()
                 print(f"✅ {ciudad}: Max {t_max}° / Min {t_min}° / Lluvia {round(p_acumulada, 2)}mm")
 
