@@ -23,8 +23,8 @@ from datetime import datetime, timedelta
 from collections import Counter
 
 # --- CONFIGURACIÓN ---
-SUPABASE_URL = "https://zzucvsremavkikecsptg.supabase.co"
-SUPABASE_KEY = "sb_secret_wfduZo57SIwf3rs1MI13DA_pI5NI6HG"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://zzucvsremavkikecsptg.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
