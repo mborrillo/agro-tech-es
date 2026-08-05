@@ -24,8 +24,16 @@ if not SUPABASE_KEY or not AEMET_API_KEY:
     print("❌ Error: Faltan las variables de entorno SUPABASE_KEY o AEMET_API_KEY.")
     sys.exit(1)
 
-# Inicializar cliente de Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Inicialización robusta para GitHub Actions y Service Role
+supabase: Client = create_client(
+    SUPABASE_URL, 
+    SUPABASE_KEY,
+    options=ClientOptions(
+        postgrest_client_timeout=20,
+        storage_client_timeout=20,
+        persist_session=False
+    )
+)
 
 # DICCIONARIO DE GEOPOSICIÓN — 54 estaciones activas Extremadura
 ESTACIONES_EXTREMADURA = {
