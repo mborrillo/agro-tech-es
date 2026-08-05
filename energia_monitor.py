@@ -17,6 +17,7 @@
 #   - var_per_prev   → variación % respecto al período anterior
 # ══════════════════════════════════════════════════════════════════
 
+import os
 import requests
 from supabase import create_client, Client
 from datetime import datetime, timedelta
