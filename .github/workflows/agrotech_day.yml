@@ -22,8 +22,8 @@ jobs:
 
       - name: Ejecutar Monitores
         env:
-          SUPABASE_URL: "https://zzucvsremavkikecsptg.supabase.co"
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          DATABASE_URL_NEON: "https://zzucvsremavkikecsptg.supabase.co"
+          DATABASE_URL_NEON: ${{ secrets.DATABASE_URL_NEON }}
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
         run: |
           python clima_monitor.py
