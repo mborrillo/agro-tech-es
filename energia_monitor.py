@@ -1,31 +1,62 @@
-name: Actualizacion Diaria Agro-Tech
+import os
+import sys
+from datetime import datetime
+import psycopg2
+from dotenv import load_dotenv
 
-on:
-  schedule:
-    - cron: '0 * * * *'  # EJECUTAR TODOS LOS DÍAS, A CADA HORA[cite: 12]
-  workflow_dispatch:     # Permite dar al botón "Run workflow" manualmente[cite: 12]
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL_NEON")
 
-jobs:
-  run_scraper:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Descargar codigo
-        uses: actions/checkout@v4
+if not DATABASE_URL:
+    print("Error: La variable de entorno DATABASE_URL_NEON no está configurada.", file=sys.stderr)
+    sys.exit(1)
 
-      - name: Instalar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+def conectar_db():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    except Exception as e:
+        print(f"Error al conectar con la base de datos: {e}", file=sys.stderr)
+        sys.exit(1)
 
-      - name: Instalar librerias
-        run: pip install -r requirements_monitors.txt
+def guardar_datos_energia(datos_procesados):
+    conn = conectar_db()
+    cursor = conn.cursor()
 
-      - name: Ejecutar Monitores
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
-        run: |
-          python clima_monitor.py
-          python mercado_monitor.py
-          python energia_monitor.py
-          python monitor_agrotech.py
+    sql_insert = """
+        INSERT INTO public.datos_energia_consolidada (
+            fecha, hora, precio_kwh, precio_min, precio_max, precio_medio, tramo, vs_media, var_precio_p
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+    """
+
+    try:
+        for fila in datos_procesados:
+            cursor.execute(sql_insert, (
+                fila.get('fecha'), fila.get('hora'), fila.get('precio_kwh'),
+                fila.get('precio_min'), fila.get('precio_max'), fila.get('precio_medio'),
+                fila.get('tramo'), fila.get('vs_media'), fila.get('var_precio_p')
+            ))
+        conn.commit()
+        print(f"[{datetime.now()}] Energía: {len(datos_procesados)} registros insertados en datos_energia_consolidada.")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error en inserción de energía: {e}", file=sys.stderr)
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+if __name__ == "__main__":
+    print(f"[{datetime.now()}] Ejecutando monitor de energía...")
+    datos_ejemplo = [{
+        "fecha": datetime.now().date(),
+        "hora": datetime.now().hour,
+        "precio_kwh": 0.12543,
+        "precio_min": 0.09100,
+        "precio_max": 0.18500,
+        "precio_medio": 0.13000,
+        "tramo": "P1",
+        "vs_media": -2.50,
+        "var_precio_p": 1.20
+    }]
+    guardar_datos_energia(datos_ejemplo)
