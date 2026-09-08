@@ -2,8 +2,8 @@ name: Actualizacion Diaria Agro-Tech
 
 on:
   schedule:
-    - cron: '0 * * * *'  # EJECUTAR TODOS LOS DÍAS, A CADA HORA[cite: 12]
-  workflow_dispatch:     # Permite dar al botón "Run workflow" manualmente[cite: 12]
+    - cron: '0 * * * *'  # EJECUTAR TODOS LOS DÍAS, A CADA HORA
+  workflow_dispatch:     # Permite dar al botón "Run workflow" manualmente
 
 jobs:
   run_scraper:
