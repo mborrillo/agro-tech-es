@@ -29,11 +29,6 @@ jobs:
           DATABASE_URL_NEON: ${{ secrets.DATABASE_URL_NEON }}
         run: python mercado_monitor.py
 
-      - name: Ejecutar Energia
-        env:
-          DATABASE_URL_NEON: ${{ secrets.DATABASE_URL_NEON }}
-        run: python energia_monitor.py
-
       - name: Ejecutar Monitor Global
         env:
           DATABASE_URL_NEON: ${{ secrets.DATABASE_URL_NEON }}
