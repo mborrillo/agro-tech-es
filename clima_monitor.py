@@ -125,13 +125,18 @@ def procesar_datos_aemet(raw_data, estaciones_catalogo):
 
 
 def guardar_datos_clima(datos):
-    """Guarda/actualiza las lecturas en la tabla datos_clima de Neon."""
+    """Guarda/actualiza las lecturas en la tabla datos_clima de Neon de forma segura."""
     if not datos:
         print("ℹ️ No hay registros para guardar.")
         return
 
     conn = psycopg2.connect(DATABASE_URL_NEON)
     cursor = conn.cursor()
+
+    sql_delete = """
+        DELETE FROM public.datos_clima 
+        WHERE fecha = %s AND UPPER(TRIM(estacion)) = UPPER(TRIM(%s));
+    """
 
     sql_insert = """
         INSERT INTO public.datos_clima (
@@ -140,22 +145,20 @@ def guardar_datos_clima(datos):
         ) VALUES (
             %(fecha)s, %(estacion)s, %(temp_max)s, %(temp_min)s, %(precipitacion)s, %(humedad)s,
             %(viento_vel)s, %(id_estacion)s, %(temp_actual)s, %(latitud)s, %(longitud)s
-        )
-        ON CONFLICT (fecha, id_estacion) DO UPDATE SET
-            temp_actual = EXCLUDED.temp_actual,
-            temp_max = GREATEST(datos_clima.temp_max, EXCLUDED.temp_max),
-            temp_min = LEAST(datos_clima.temp_min, EXCLUDED.temp_min),
-            precipitacion = EXCLUDED.precipitacion,
-            humedad = COALESCE(EXCLUDED.humedad, datos_clima.humedad),
-            viento_vel = COALESCE(EXCLUDED.viento_vel, datos_clima.viento_vel),
-            latitud = COALESCE(EXCLUDED.latitud, datos_clima.latitud),
-            longitud = COALESCE(EXCLUDED.longitud, datos_clima.longitud);
+        );
     """
 
     try:
-        cursor.executemany(sql_insert, datos)
+        registros_procesados = 0
+        for fila in datos:
+            # 1. Limpiar registro previo del mismo día y estación para evitar duplicados sin depender de restricciones
+            cursor.execute(sql_delete, (fila["fecha"], fila["estacion"]))
+            # 2. Insertar la lectura más reciente
+            cursor.execute(sql_insert, fila)
+            registros_procesados += 1
+
         conn.commit()
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Clima: {len(datos)} registros de estaciones guardados/actualizados.")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ✅ Clima: {registros_procesados} estaciones registradas/actualizadas correctamente en datos_clima.")
     except Exception as e:
         conn.rollback()
         print(f"❌ Error al guardar datos_clima: {e}", file=sys.stderr)
